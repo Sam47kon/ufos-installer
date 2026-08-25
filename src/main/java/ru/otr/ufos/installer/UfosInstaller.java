@@ -118,6 +118,16 @@ public class UfosInstaller {
 			context.setParameter("chown.user", cli.getChownUser());
 			context.setParameter("force", cli.isForce());
 			context.setParameter("dry-run", cli.isDryRun());
+			context.setParameter("ufos.version", cli.getUfosVersion());
+			context.setParameter("artifact.core.war", cli.getCoreWar());
+			context.setParameter("artifact.libs.zip", cli.getLibsZip());
+			context.setParameter("artifact.app.zip", cli.getAppZip());
+			context.setParameter("artifact.jetty.template", cli.getJettyTemplate());
+			context.setParameter("artifact.init.sql", cli.getInitSql());
+			context.setParameter("chown.user", cli.getChownUser());
+			context.setParameter("force", cli.isForce());
+			context.setParameter("dry-run", cli.isDryRun());
+			context.setParameter("skip.db", cli.isSkipDb());
 
 			// Dry-run режим
 			if (cli.isDryRun()) {

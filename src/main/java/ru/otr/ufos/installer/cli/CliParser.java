@@ -97,6 +97,30 @@ public class CliParser implements Runnable {
 			versionHelp = true)
 	private boolean versionRequested;
 
+	@Option(names = {"--ufos-version"},
+			description = "Версия УФОС (если её нельзя определить из имени WAR)")
+	private String ufosVersion;
+
+	@Option(names = {"--core-war"},
+			description = "Путь к WAR-файлу ядра")
+	private Path coreWar;
+
+	@Option(names = {"--libs-zip"},
+			description = "Путь к архиву библиотек")
+	private Path libsZip;
+
+	@Option(names = {"--app-zip"},
+			description = "Путь к архиву приклада")
+	private Path appZip;
+
+	@Option(names = {"--jetty-template"},
+			description = "Путь к архиву или каталогу шаблона Jetty")
+	private Path jettyTemplate;
+
+	@Option(names = {"--skip-db"},
+			description = "Пропустить проверку и инициализацию БД")
+	private boolean skipDb;
+
 	@Override
 	public void run() {
 		// Этот метод не используется, так как мы парсим аргументы вручную
@@ -172,5 +196,29 @@ public class CliParser implements Runnable {
 
 	public boolean isVersionRequested() {
 		return versionRequested;
+	}
+
+	public String getUfosVersion() {
+		return ufosVersion;
+	}
+
+	public Path getCoreWar() {
+		return coreWar;
+	}
+
+	public Path getLibsZip() {
+		return libsZip;
+	}
+
+	public Path getAppZip() {
+		return appZip;
+	}
+
+	public Path getJettyTemplate() {
+		return jettyTemplate;
+	}
+
+	public boolean isSkipDb() {
+		return skipDb;
 	}
 }
