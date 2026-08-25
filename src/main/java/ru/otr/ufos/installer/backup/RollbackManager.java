@@ -1,91 +1,86 @@
 package ru.otr.ufos.installer.backup;
 
-import ru.otr.ufos.installer.core.InstallerContext;
+import ru.otr.ufos.installer.core.UserPrompt;
 import ru.otr.ufos.installer.filesystem.FileManager;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Scanner;
 
 /**
- * Менеджер отката изменений
+ * Откат изменений из бэкапа
  */
 public class RollbackManager {
+
 	private final InstallerLogger logger;
 	private final FileManager fileManager;
-	private final BackupManager backupManager;
 
-	public RollbackManager(InstallerContext context) {
-		this.logger = context.getLogger();
+	public RollbackManager(InstallerLogger logger) {
+		this.logger = logger;
 		this.fileManager = new FileManager(logger);
-		this.backupManager = new BackupManager(logger, context.getBackupDir());
 	}
 
-	/**
-	 * Запросить откат при ошибке
-	 *
-	 * @param backupDir директория с бэкапом
-	 * @param standDir директория стенда
-	 * @return true если пользователь согласился на откат
-	 */
-	public boolean requestRollback(Path backupDir, Path standDir) {
+	public boolean requestRollback(BackupResult backup,
+								   Path standDir,
+								   UserPrompt prompt,
+								   Exception error) {
+
 		logger.error("");
 		logger.error("=== ОБНАРУЖЕНА ОШИБКА ===");
-		logger.error("Стенд может быть в неконсистентном состоянии.");
-		logger.error("Доступен бэкап: " + backupDir);
+		logger.error("Сообщение: " + error.getMessage());
+		logger.error("Доступен бэкап: " + backup.getBackupDir());
 		logger.error("");
 
-		// В CLI режиме спрашиваем пользователя
-		if (!isGuiMode()) {
-			System.out.print("Выполнить откат? (y/n): ");
-			Scanner scanner = new Scanner(System.in);
-			String answer = scanner.nextLine().trim().toLowerCase();
+		boolean confirmed = prompt.confirm("Выполнить откат из бэкапа?");
 
-			if (!answer.equals("y") && !answer.equals("yes")) {
-				logger.info("Откат отменён пользователем");
-				return false;
-			}
-		} else {
-			// В GUI режиме можно показать диалог (реализуем позже)
-			logger.info("В GUI режиме откат будет запрошен через диалоговое окно");
-			return true; // пока всегда откатываем
+		if (!confirmed) {
+			logger.warn("Откат отменён пользователем");
+			return false;
 		}
 
-		return performRollback(backupDir, standDir);
+		return performRollback(backup, standDir);
 	}
 
-	/**
-	 * Выполнить откат
-	 */
-	public boolean performRollback(Path backupDir, Path standDir) {
+	public boolean performRollback(BackupResult backup, Path standDir) {
 		try {
-			logger.step("Выполнение отката...");
+			logger.step("Выполнение отката");
 
-			// Очищаем стенд
-			logger.info("Очистка стенда...");
-			fileManager.clearDirectory(standDir);
+			if (backup.isFull()) {
+				logger.info("Очистка стенда перед полным восстановлением");
+				fileManager.clearDirectory(standDir);
 
-			// Восстанавливаем из бэкапа
-			logger.info("Восстановление из бэкапа...");
-			backupManager.restore(backupDir, standDir);
+				logger.info("Восстановление из полного бэкапа");
+				fileManager.copyDirectory(backup.getBackupDir(), standDir);
+			} else {
+				for (String relativePath : backup.getRelativePaths()) {
+					Path target = standDir.resolve(relativePath);
+					Path source = backup.getBackupDir().resolve(relativePath);
 
-			logger.info("✓ Откат выполнен успешно");
+					if (fileManager.exists(target)) {
+						logger.info("Удаление: " + relativePath);
+						fileManager.deleteRecursively(target);
+					}
+
+					if (fileManager.exists(source)) {
+						logger.info("Восстановление: " + relativePath);
+
+						if (fileManager.isDirectory(source)) {
+							fileManager.copyDirectory(source, target);
+						} else {
+							fileManager.copyFile(source, target);
+						}
+					}
+				}
+			}
+
+			logger.info("Откат выполнен успешно");
 			return true;
 
 		} catch (IOException e) {
-			logger.error("✗ Критическая ошибка при откате", e);
-			logger.error("Стенд может быть повреждён!");
-			logger.error("Попробуйте восстановить вручную из: " + backupDir);
+			logger.error("Критическая ошибка при откате", e);
+			logger.error("Стенд может быть повреждён.");
+			logger.error("Попробуйте восстановить вручную из: " + backup.getBackupDir());
 			return false;
 		}
-	}
-
-	/**
-	 * Проверить, запущен ли инсталлятор в GUI режиме
-	 */
-	private boolean isGuiMode() {
-		// Простая проверка - если нет консоли, значит GUI
-		return System.console() == null;
 	}
 }

@@ -4,36 +4,57 @@ import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 
 /**
  * Контекст выполнения инсталлятора
  */
 public class InstallerContext {
+
 	private final Scenario scenario;
 	private final Path standDir;
 	private final Path artifactsDir;
 	private final Path backupDir;
-	private final Path logFile;
-	private final Map<String, Object> parameters;
-	private final LocalDateTime startTime;
 	private final InstallerLogger logger;
+	private final LocalDateTime startTime;
 
-	public InstallerContext(Scenario scenario, Path standDir, Path artifactsDir,
-							Path backupDir, InstallerLogger logger) {
+	private final Map<String, Object> parameters;
+	private final Map<String, String> report;
+	private final List<String> changes;
+
+	private UserPrompt userPrompt;
+
+	public InstallerContext(Scenario scenario,
+							Path standDir,
+							Path artifactsDir,
+							Path backupDir,
+							InstallerLogger logger) {
 		this.scenario = scenario;
 		this.standDir = standDir;
 		this.artifactsDir = artifactsDir;
 		this.backupDir = backupDir;
-		this.parameters = new HashMap<>();
-		this.startTime = LocalDateTime.now();
 		this.logger = logger;
+		this.startTime = LocalDateTime.now();
 
-		// Создаём путь к лог-файлу
-		String timestamp = startTime.format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-		this.logFile = artifactsDir.getParent().resolve("installer-" + timestamp + ".log");
+		this.parameters = new LinkedHashMap<>();
+		this.report = new LinkedHashMap<>();
+		this.changes = new ArrayList<>();
+
+		// По умолчанию консольный prompt.
+		// GUI потом может подменить свой реализацией.
+		this.userPrompt = question -> {
+			System.out.print(question + " [y/N]: ");
+			Scanner scanner = new Scanner(System.in);
+			if (scanner.hasNextLine()) {
+				String answer = scanner.nextLine().trim().toLowerCase();
+				return answer.equals("y") || answer.equals("yes") || answer.equals("да");
+			}
+			return false;
+		};
 	}
 
 	public Scenario getScenario() {
@@ -52,12 +73,12 @@ public class InstallerContext {
 		return backupDir;
 	}
 
-	public Path getLogFile() {
-		return logFile;
-	}
-
 	public InstallerLogger getLogger() {
 		return logger;
+	}
+
+	public LocalDateTime getStartTime() {
+		return startTime;
 	}
 
 	public void setParameter(String key, Object value) {
@@ -70,25 +91,52 @@ public class InstallerContext {
 
 	public String getStringParameter(String key) {
 		Object value = parameters.get(key);
-		return value != null ? value.toString() : null;
+		return value == null ? null : value.toString();
+	}
+
+	public Path getPathParameter(String key) {
+		Object value = parameters.get(key);
+		if (value == null) {
+			return null;
+		}
+		if (value instanceof Path path) {
+			return path;
+		}
+		return Path.of(value.toString());
 	}
 
 	public boolean getBooleanParameter(String key, boolean defaultValue) {
 		Object value = parameters.get(key);
-		if (value instanceof Boolean) {
-			return (Boolean) value;
+		if (value == null) {
+			return defaultValue;
 		}
-		if (value instanceof String) {
-			return Boolean.parseBoolean((String) value);
+		if (value instanceof Boolean b) {
+			return b;
 		}
-		return defaultValue;
+		return Boolean.parseBoolean(value.toString());
 	}
 
-	public LocalDateTime getStartTime() {
-		return startTime;
+	public void addReport(String key, String value) {
+		report.put(key, value);
 	}
 
-	public Map<String, Object> getParameters() {
-		return new HashMap<>(parameters);
+	public Map<String, String> getReport() {
+		return report;
+	}
+
+	public void addChange(String change) {
+		changes.add(change);
+	}
+
+	public List<String> getChanges() {
+		return changes;
+	}
+
+	public UserPrompt getUserPrompt() {
+		return userPrompt;
+	}
+
+	public void setUserPrompt(UserPrompt userPrompt) {
+		this.userPrompt = userPrompt;
 	}
 }

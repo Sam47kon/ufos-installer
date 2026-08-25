@@ -7,11 +7,14 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Менеджер бэкапов
  */
 public class BackupManager {
+
 	private final InstallerLogger logger;
 	private final FileManager fileManager;
 	private final Path backupBaseDir;
@@ -22,83 +25,60 @@ public class BackupManager {
 		this.backupBaseDir = backupBaseDir;
 	}
 
-	/**
-	 * Создать бэкап директории
-	 *
-	 * @param sourceDir директория для бэкапа
-	 * @param backupName имя бэкапа (например, "core" или "full")
-	 * @return путь к созданному бэкапу
-	 */
-	public Path createBackup(Path sourceDir, String backupName) throws IOException {
+	public BackupResult createFullBackup(Path standDir, String reason) throws IOException {
 		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-		Path backupDir = backupBaseDir.resolve("backup-" + timestamp + "-" + backupName);
+		Path backupDir = backupBaseDir.resolve("backup-" + timestamp + "-" + reason + "-full");
 
-		logger.info("Создание бэкапа: " + sourceDir + " -> " + backupDir);
+		logger.step("Создание полного бэкапа стенда");
+		logger.info("Источник: " + standDir);
+		logger.info("Назначение: " + backupDir);
 
 		fileManager.createDirectories(backupDir);
-		fileManager.copyDirectory(sourceDir, backupDir);
+		fileManager.copyDirectory(standDir, backupDir);
 
-		logger.info("Бэкап создан: " + backupDir);
-		return backupDir;
+		logger.info("Полный бэкап создан");
+
+		return new BackupResult(backupDir, List.of(""), true);
 	}
 
-	/**
-	 * Создать бэкап отдельных файлов/директорий
-	 */
-	public Path createPartialBackup(Path standDir, String backupName, String... relativePaths) throws IOException {
+	public BackupResult createPartialBackup(Path standDir, String reason, List<String> relativePaths) throws IOException {
 		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-		Path backupDir = backupBaseDir.resolve("backup-" + timestamp + "-" + backupName);
+		Path backupDir = backupBaseDir.resolve("backup-" + timestamp + "-" + reason);
 
-		logger.info("Создание частичного бэкапа: " + backupName);
+		logger.step("Создание частичного бэкапа");
+		logger.info("Каталог бэкапа: " + backupDir);
 
 		fileManager.createDirectories(backupDir);
+
+		List<String> backedUp = new ArrayList<>();
 
 		for (String relativePath : relativePaths) {
-			Path source = standDir.resolve(relativePath);
-			Path target = backupDir.resolve(relativePath);
+			String normalized = relativePath.replace('\\', '/');
+			Path source = standDir.resolve(normalized);
 
-			if (fileManager.exists(source)) {
-				if (fileManager.isDirectory(source)) {
-					fileManager.copyDirectory(source, target);
-					logger.info("  ✓ " + relativePath + "/");
-				} else {
-					fileManager.copyFile(source, target);
-					logger.info("  ✓ " + relativePath);
-				}
-			} else {
-				logger.warn("  ✗ " + relativePath + " (не существует)");
+			if (!fileManager.exists(source)) {
+				logger.warn("Пропуск, не существует: " + normalized);
+				continue;
 			}
+
+			Path target = backupDir.resolve(normalized);
+
+			if (fileManager.isDirectory(source)) {
+				fileManager.copyDirectory(source, target);
+				logger.info("  ✓ " + normalized + "/");
+			} else {
+				fileManager.copyFile(source, target);
+				logger.info("  ✓ " + normalized);
+			}
+
+			backedUp.add(normalized);
 		}
 
-		logger.info("Бэкап создан: " + backupDir);
-		return backupDir;
+		logger.info("Частичный бэкап создан");
+
+		return new BackupResult(backupDir, backedUp, false);
 	}
 
-	/**
-	 * Восстановить из бэкапа
-	 */
-	public void restore(Path backupDir, Path targetDir) throws IOException {
-		logger.info("Восстановление из бэкапа: " + backupDir + " -> " + targetDir);
-
-		if (!fileManager.exists(backupDir)) {
-			throw new IOException("Бэкап не найден: " + backupDir);
-		}
-
-		fileManager.copyDirectory(backupDir, targetDir);
-		logger.info("Восстановление завершено");
-	}
-
-	/**
-	 * Удалить бэкап
-	 */
-	public void deleteBackup(Path backupDir) throws IOException {
-		logger.info("Удаление бэкапа: " + backupDir);
-		fileManager.deleteRecursively(backupDir);
-	}
-
-	/**
-	 * Получить базовую директорию бэкапов
-	 */
 	public Path getBackupBaseDir() {
 		return backupBaseDir;
 	}
