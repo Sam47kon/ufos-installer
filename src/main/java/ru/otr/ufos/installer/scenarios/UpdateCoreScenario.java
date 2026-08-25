@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -230,8 +231,6 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 					.filter(p -> p.getFileName().toString().toLowerCase().startsWith("sufd-server"))
 					.collect(Collectors.toList());
 
-			FileManager fileManager = new FileManager(null);
-			// FileManager требует logger, поэтому используем простой Files delete через обход
 			for (Path dir : dirs) {
 				deleteRecursivelySimple(dir);
 			}
@@ -244,7 +243,9 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		}
 
 		try (Stream<Path> stream = Files.walk(path)) {
-			List<Path> paths = stream.sorted((a, b) -> b.compareTo(a)).collect(Collectors.toList());
+			List<Path> paths = stream
+					.sorted(Comparator.reverseOrder())
+					.toList();
 
 			for (Path p : paths) {
 				Files.deleteIfExists(p);

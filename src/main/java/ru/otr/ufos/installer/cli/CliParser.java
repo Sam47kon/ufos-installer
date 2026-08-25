@@ -1,11 +1,11 @@
 package ru.otr.ufos.installer.cli;
 
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-import ru.otr.ufos.installer.core.Scenario;
 
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Парсер аргументов командной строки
@@ -13,121 +13,173 @@ import java.nio.file.Path;
 @Command(
 		name = "ufos-installer",
 		description = "Инструмент для развертывания и обновления стендов УФОС",
-		version = "UFOS Installer 1.0.0"
+		mixinStandardHelpOptions = true,
+		version = "UFOS Stand Installer 1.0.0"
 )
 public class CliParser implements Runnable {
 
-	@Option(names = {"--mode", "-m"},
+	@Option(
+			names = {"--mode", "-m"},
 			description = "Режим работы: init, update-core, update-jetty",
-			required = true)
+			required = true
+	)
 	private String mode;
 
-	@Option(names = {"--stand-dir", "-s"},
+	@Option(
+			names = {"--stand-dir", "-s"},
 			description = "Путь к каталогу стенда",
-			required = true)
+			required = true
+	)
 	private Path standDir;
 
-	@Option(names = {"--artifacts-dir", "-a"},
+	@Option(
+			names = {"--artifacts-dir", "-a"},
 			description = "Путь к каталогу с артефактами",
-			defaultValue = "./artifacts")
+			defaultValue = "./artifacts"
+	)
 	private Path artifactsDir;
 
-	@Option(names = {"--backup-dir", "-b"},
-			description = "Путь к каталогу бэкапов",
-			defaultValue = "")
+	@Option(
+			names = {"--backup-dir", "-b"},
+			description = "Путь к каталогу бэкапов. По умолчанию: <родитель стенда>/backups/<имя стенда>",
+			defaultValue = ""
+	)
 	private Path backupDir;
 
-	@Option(names = {"--db-host"},
-			description = "Хост PostgreSQL (для init)",
-			defaultValue = "localhost")
-	private String dbHost;
-
-	@Option(names = {"--db-port"},
-			description = "Порт PostgreSQL (для init)",
-			defaultValue = "5432")
-	private String dbPort;
-
-	@Option(names = {"--db-name"},
-			description = "Имя БД (для init)",
-			defaultValue = "sufd")
-	private String dbName;
-
-	@Option(names = {"--db-user"},
-			description = "Пользователь БД (для init)",
-			defaultValue = "sufd")
-	private String dbUser;
-
-	@Option(names = {"--db-password"},
-			description = "Пароль БД (для init)",
-			interactive = true,
-			arity = "0..1")
-	private String dbPassword;
-
-	@Option(names = {"--init-sql"},
-			description = "Путь к init SQL файлу (для init)")
-	private Path initSql;
-
-	@Option(names = {"--chown-user"},
-			description = "Пользователь для chown после установки")
-	private String chownUser;
-
-	@Option(names = {"--force", "-f"},
-			description = "Принудительная перезапись")
-	private boolean force;
-
-	@Option(names = {"--dry-run"},
-			description = "Показать план без выполнения")
-	private boolean dryRun;
-
-	@Option(names = {"--verbose", "-v"},
-			description = "Подробный вывод")
-	private boolean verbose;
-
-	@Option(names = {"--gui"},
-			description = "Запустить GUI режим")
-	private boolean gui;
-
-	@Option(names = {"--help", "-h"},
-			description = "Показать справку",
-			usageHelp = true)
-	private boolean helpRequested;
-
-	@Option(names = {"--version", "-V"},
-			description = "Показать версию",
-			versionHelp = true)
-	private boolean versionRequested;
-
-	@Option(names = {"--ufos-version"},
-			description = "Версия УФОС (если её нельзя определить из имени WAR)")
+	@Option(
+			names = {"--ufos-version"},
+			description = "Версия УФОС, если её нельзя определить из имени WAR"
+	)
 	private String ufosVersion;
 
-	@Option(names = {"--core-war"},
-			description = "Путь к WAR-файлу ядра")
+	@Option(
+			names = {"--core-war"},
+			description = "Путь к WAR-файлу ядра. Если не указан, ищется автоматически в --artifacts-dir"
+	)
 	private Path coreWar;
 
-	@Option(names = {"--libs-zip"},
-			description = "Путь к архиву библиотек")
+	@Option(
+			names = {"--libs-zip"},
+			description = "Путь к архиву библиотек. Если не указан, ищется автоматически в --artifacts-dir"
+	)
 	private Path libsZip;
 
-	@Option(names = {"--app-zip"},
-			description = "Путь к архиву приклада")
+	@Option(
+			names = {"--app-zip"},
+			description = "Путь к архиву приклада. Если не указан, ищется автоматически в --artifacts-dir"
+	)
 	private Path appZip;
 
-	@Option(names = {"--jetty-template"},
-			description = "Путь к архиву или каталогу шаблона Jetty")
+	@Option(
+			names = {"--app-version"},
+			description = "Версия приклада"
+	)
+	private String appVersion;
+
+	@Option(
+			names = {"--jetty-template"},
+			description = "Путь к архиву или каталогу шаблона Jetty"
+	)
 	private Path jettyTemplate;
 
-	@Option(names = {"--skip-db"},
-			description = "Пропустить проверку и инициализацию БД")
+	@Option(
+			names = {"--init-sql"},
+			description = "Путь к init SQL файлу для первичной инициализации БД"
+	)
+	private Path initSql;
+
+	@Option(
+			names = {"--db-host"},
+			description = "Хост PostgreSQL",
+			defaultValue = "localhost"
+	)
+	private String dbHost;
+
+	@Option(
+			names = {"--db-port"},
+			description = "Порт PostgreSQL",
+			defaultValue = "5432"
+	)
+	private String dbPort;
+
+	@Option(
+			names = {"--db-name"},
+			description = "Имя базы данных",
+			defaultValue = "sufd"
+	)
+	private String dbName;
+
+	@Option(
+			names = {"--db-user"},
+			description = "Пользователь БД",
+			defaultValue = "sufd"
+	)
+	private String dbUser;
+
+	@Option(
+			names = {"--db-password"},
+			description = "Пароль БД",
+			interactive = true,
+			arity = "0..1"
+	)
+	private String dbPassword;
+
+	@Option(
+			names = {"--skip-db"},
+			description = "Пропустить проверку и инициализацию БД"
+	)
 	private boolean skipDb;
+
+	@Option(
+			names = {"--chown-user"},
+			description = "Пользователь для chown -R после установки (только Linux)"
+	)
+	private String chownUser;
+
+	@Option(
+			names = {"--var"},
+			paramLabel = "KEY=VALUE",
+			description = "Дополнительная переменная для подстановки в конфиги, например --var=DB_HOST=localhost"
+	)
+	private Map<String, String> customVariables = new HashMap<>();
+
+	@Option(
+			names = {"--force", "-f"},
+			description = "Разрешить перезапись существующего стенда"
+	)
+	private boolean force;
+
+	@Option(
+			names = {"--dry-run"},
+			description = "Показать план действий без выполнения"
+	)
+	private boolean dryRun;
+
+	@Option(
+			names = {"--verbose", "-v"},
+			description = "Подробный вывод"
+	)
+	private boolean verbose;
+
+	@Option(
+			names = {"--gui"},
+			description = "Принудительно запустить GUI"
+	)
+	private boolean gui;
+
+	@Option(
+			names = {"--cli"},
+			description = "Принудительно запустить CLI"
+	)
+	private boolean cli;
 
 	@Override
 	public void run() {
-		// Этот метод не используется, так как мы парсим аргументы вручную
+		// Класс используется только для парсинга аргументов.
 	}
 
-	public Scenario getScenario() {
-		return Scenario.fromCommand(mode);
+	public String getMode() {
+		return mode;
 	}
 
 	public Path getStandDir() {
@@ -139,11 +191,46 @@ public class CliParser implements Runnable {
 	}
 
 	public Path getBackupDir() {
-		if (backupDir == null || backupDir.toString().isEmpty()) {
-			// По умолчанию: ../backups/STAND/
-			return standDir.getParent().resolve("backups").resolve(standDir.getFileName());
+		if (backupDir != null && !backupDir.toString().isBlank()) {
+			return backupDir;
 		}
-		return backupDir;
+
+		Path absoluteStandDir = standDir.toAbsolutePath().normalize();
+		Path parent = absoluteStandDir.getParent();
+
+		if (parent == null) {
+			return Path.of("backups").resolve(absoluteStandDir.getFileName());
+		}
+
+		return parent.resolve("backups").resolve(absoluteStandDir.getFileName());
+	}
+
+	public String getUfosVersion() {
+		return ufosVersion;
+	}
+
+	public Path getCoreWar() {
+		return coreWar;
+	}
+
+	public Path getLibsZip() {
+		return libsZip;
+	}
+
+	public Path getAppZip() {
+		return appZip;
+	}
+
+	public String getAppVersion() {
+		return appVersion;
+	}
+
+	public Path getJettyTemplate() {
+		return jettyTemplate;
+	}
+
+	public Path getInitSql() {
+		return initSql;
 	}
 
 	public String getDbHost() {
@@ -166,12 +253,16 @@ public class CliParser implements Runnable {
 		return dbPassword;
 	}
 
-	public Path getInitSql() {
-		return initSql;
+	public boolean isSkipDb() {
+		return skipDb;
 	}
 
 	public String getChownUser() {
 		return chownUser;
+	}
+
+	public Map<String, String> getCustomVariables() {
+		return customVariables;
 	}
 
 	public boolean isForce() {
@@ -190,35 +281,7 @@ public class CliParser implements Runnable {
 		return gui;
 	}
 
-	public boolean isHelpRequested() {
-		return helpRequested;
-	}
-
-	public boolean isVersionRequested() {
-		return versionRequested;
-	}
-
-	public String getUfosVersion() {
-		return ufosVersion;
-	}
-
-	public Path getCoreWar() {
-		return coreWar;
-	}
-
-	public Path getLibsZip() {
-		return libsZip;
-	}
-
-	public Path getAppZip() {
-		return appZip;
-	}
-
-	public Path getJettyTemplate() {
-		return jettyTemplate;
-	}
-
-	public boolean isSkipDb() {
-		return skipDb;
+	public boolean isCli() {
+		return cli;
 	}
 }

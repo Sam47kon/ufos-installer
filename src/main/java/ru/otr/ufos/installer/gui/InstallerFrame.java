@@ -3,285 +3,478 @@ package ru.otr.ufos.installer.gui;
 import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.core.Scenario;
 import ru.otr.ufos.installer.logging.InstallerLogger;
-import ru.otr.ufos.installer.scenarios.ScenarioExecutor;
 import ru.otr.ufos.installer.scenarios.InitScenario;
+import ru.otr.ufos.installer.scenarios.ScenarioExecutor;
 import ru.otr.ufos.installer.scenarios.UpdateCoreScenario;
+import ru.otr.ufos.installer.scenarios.UpdateJettyScenario;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * GUI для UFOS Stand Installer
+ * GUI инсталлятора УФОС
  */
 public class InstallerFrame extends JFrame {
 
 	private final JComboBox<String> modeCombo;
+
 	private final JTextField standDirField;
 	private final JTextField artifactsDirField;
-	private final JTextArea logArea;
-	private final JButton runButton;
-	private final JButton browseStandButton;
-	private final JButton browseArtifactsButton;
-	private final JProgressBar progressBar;
+
+	private final JTextField coreWarField;
+	private final JTextField libsZipField;
+	private final JTextField appZipField;
+	private final JTextField jettyTemplateField;
+	private final JTextField initSqlField;
+
+	private final JTextField ufosVersionField;
+	private final JTextField chownUserField;
+
+	private final JCheckBox skipDbCheckBox;
+	private final JCheckBox forceCheckBox;
 	private final JCheckBox verboseCheckBox;
 
-	// DB Fields Panel
 	private final JPanel dbPanel;
 	private final JTextField dbHostField;
 	private final JTextField dbPortField;
 	private final JTextField dbNameField;
 	private final JTextField dbUserField;
 	private final JPasswordField dbPassField;
-	private final JTextField initSqlField;
-	private final JButton browseInitSqlButton;
 
-	private InstallerLogger logger;
+	private final JTextArea logArea;
+	private final JButton runButton;
+	private final JProgressBar progressBar;
 
 	public InstallerFrame() {
-		setTitle("UFOS Stand Installer v1.0");
+		setTitle("UFOS Stand Installer");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setSize(800, 700);
+		setSize(1000, 800);
 		setLocationRelativeTo(null);
-		setLayout(new BorderLayout(10, 10));
+		setLayout(new BorderLayout(8, 8));
 
-		// Top Panel: Parameters
-		JPanel paramsPanel = new JPanel(new GridBagLayout());
-		paramsPanel.setBorder(BorderFactory.createTitledBorder("Параметры установки"));
+		JPanel topPanel = new JPanel(new GridBagLayout());
+		topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
 		GridBagConstraints gbc = new GridBagConstraints();
-		gbc.insets = new Insets(5, 5, 5, 5);
+		gbc.insets = new Insets(4, 4, 4, 4);
 		gbc.anchor = GridBagConstraints.WEST;
 		gbc.fill = GridBagConstraints.HORIZONTAL;
 
-		// Mode Selection
-		gbc.gridx = 0; gbc.gridy = 0;
-		paramsPanel.add(new JLabel("Режим:"), gbc);
-		gbc.gridx = 1; gbc.weightx = 1.0; gbc.gridwidth = 2;
+		int row = 0;
+
+		// Режим
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		gbc.weightx = 0;
+		gbc.gridwidth = 1;
+		topPanel.add(new JLabel("Режим:"), gbc);
+
 		modeCombo = new JComboBox<>(new String[]{
-				"Первичная установка (Init)",
-				"Обновление ядра (Update Core)",
-				"Обновление Jetty (Update Full)"
+				"Первичная установка (init)",
+				"Обновление ядра и приклада (update-core)",
+				"Обновление с пересозданием Jetty (update-jetty)"
 		});
-		paramsPanel.add(modeCombo, gbc);
 
-		// Stand Dir
-		gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0; gbc.gridwidth = 1;
-		paramsPanel.add(new JLabel("Папка стенда:"), gbc);
-		gbc.gridx = 1; gbc.weightx = 1.0;
-		standDirField = new JTextField(30);
-		paramsPanel.add(standDirField, gbc);
-		gbc.gridx = 2; gbc.weightx = 0;
-		browseStandButton = new JButton("...");
-		browseStandButton.addActionListener(e -> browseDirectory(standDirField));
-		paramsPanel.add(browseStandButton, gbc);
+		gbc.gridx = 1;
+		gbc.weightx = 1;
+		gbc.gridwidth = 2;
+		topPanel.add(modeCombo, gbc);
 
-		// Artifacts Dir
-		gbc.gridx = 0; gbc.gridy = 2;
-		paramsPanel.add(new JLabel("Папка артефактов:"), gbc);
-		gbc.gridx = 1; gbc.weightx = 1.0;
-		artifactsDirField = new JTextField("./artifacts");
-		paramsPanel.add(artifactsDirField, gbc);
-		gbc.gridx = 2; gbc.weightx = 0;
-		browseArtifactsButton = new JButton("...");
-		browseArtifactsButton.addActionListener(e -> browseDirectory(artifactsDirField));
-		paramsPanel.add(browseArtifactsButton, gbc);
+		row++;
 
-		// DB Panel (Only visible for Init)
-		dbPanel = new JPanel(new GridBagLayout());
-		dbPanel.setBorder(BorderFactory.createTitledBorder("Параметры БД (только для Init)"));
+		// Основные пути
+		standDirField = addPathField(topPanel, gbc, row, "Папка стенда:", true);
+		row++;
 
-		GridBagConstraints dbGbc = new GridBagConstraints();
-		dbGbc.insets = new Insets(2, 2, 2, 2);
-		dbGbc.anchor = GridBagConstraints.WEST;
-		dbGbc.fill = GridBagConstraints.HORIZONTAL;
+		artifactsDirField = addPathField(topPanel, gbc, row, "Папка артефактов:", true);
+		row++;
 
+		coreWarField = addPathField(topPanel, gbc, row, "WAR ядра (опционально):", false);
+		row++;
+
+		libsZipField = addPathField(topPanel, gbc, row, "Архив библиотек (опционально):", false);
+		row++;
+
+		appZipField = addPathField(topPanel, gbc, row, "Архив приклада (опционально):", false);
+		row++;
+
+		jettyTemplateField = addPathField(topPanel, gbc, row, "Шаблон Jetty (zip или папка):", false);
+		row++;
+
+		initSqlField = addPathField(topPanel, gbc, row, "Init SQL (опционально):", false);
+		row++;
+
+		ufosVersionField = addTextField(topPanel, gbc, row, "Версия УФОС (опционально):");
+		row++;
+
+		chownUserField = addTextField(topPanel, gbc, row, "chown пользователь (опционально):");
+		row++;
+
+		// Чекбоксы
+		JPanel checkBoxPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+
+		skipDbCheckBox = new JCheckBox("Пропустить БД");
+		forceCheckBox = new JCheckBox("--force");
+		verboseCheckBox = new JCheckBox("Подробный вывод");
+
+		checkBoxPanel.add(skipDbCheckBox);
+		checkBoxPanel.add(forceCheckBox);
+		checkBoxPanel.add(verboseCheckBox);
+
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		gbc.gridwidth = 3;
+		topPanel.add(checkBoxPanel, gbc);
+
+		row++;
+
+		// Панель БД
 		dbHostField = new JTextField("localhost", 15);
-		dbPortField = new JTextField("5432", 5);
+		dbPortField = new JTextField("5432", 8);
 		dbNameField = new JTextField("sufd", 15);
 		dbUserField = new JTextField("sufd", 15);
 		dbPassField = new JPasswordField(15);
-		initSqlField = new JTextField(20);
-		browseInitSqlButton = new JButton("...");
+		dbPanel = createDbPanel();
 
-		dbGbc.gridx = 0; dbGbc.gridy = 0; dbPanel.add(new JLabel("Host:"), dbGbc);
-		dbGbc.gridx = 1; dbPanel.add(dbHostField, dbGbc);
-		dbGbc.gridx = 2; dbPanel.add(new JLabel("Port:"), dbGbc);
-		dbGbc.gridx = 3; dbPanel.add(dbPortField, dbGbc);
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		gbc.gridwidth = 3;
+		topPanel.add(dbPanel, gbc);
 
-		dbGbc.gridx = 0; dbGbc.gridy = 1; dbPanel.add(new JLabel("DB Name:"), dbGbc);
-		dbGbc.gridx = 1; dbPanel.add(dbNameField, dbGbc);
-		dbGbc.gridx = 2; dbPanel.add(new JLabel("User:"), dbGbc);
-		dbGbc.gridx = 3; dbPanel.add(dbUserField, dbGbc);
+		modeCombo.addActionListener(e -> updateVisibility());
+		updateVisibility();
 
-		dbGbc.gridx = 0; dbGbc.gridy = 2; dbPanel.add(new JLabel("Password:"), dbGbc);
-		dbGbc.gridx = 1; dbGbc.gridwidth = 3; dbPanel.add(dbPassField, dbGbc);
+		JScrollPane topScroll = new JScrollPane(topPanel);
+		topScroll.setPreferredSize(new Dimension(980, 430));
+		topScroll.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-		dbGbc.gridx = 0; dbGbc.gridy = 3; dbGbc.gridwidth = 1;
-		dbPanel.add(new JLabel("Init SQL:"), dbGbc);
-		dbGbc.gridx = 1; dbGbc.weightx = 1.0;
-		dbPanel.add(initSqlField, dbGbc);
-		dbGbc.gridx = 2; dbGbc.weightx = 0;
-		browseInitSqlButton.addActionListener(e -> browseFile(initSqlField));
-		dbPanel.add(browseInitSqlButton, dbGbc);
+		add(topScroll, BorderLayout.NORTH);
 
-		gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 3;
-		paramsPanel.add(dbPanel, gbc);
-
-		// Toggle DB panel visibility based on mode
-		modeCombo.addActionListener(e -> {
-			boolean isInit = modeCombo.getSelectedIndex() == 0;
-			dbPanel.setVisible(isInit);
-			revalidate();
-			repaint();
-		});
-		dbPanel.setVisible(true);
-
-		add(paramsPanel, BorderLayout.NORTH);
-
-		// Center Panel: Log Output
+		// Лог
 		logArea = new JTextArea();
 		logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
 		logArea.setEditable(false);
-		logArea.setBackground(Color.BLACK);
-		logArea.setForeground(Color.GREEN);
-		JScrollPane scrollPane = new JScrollPane(logArea);
-		scrollPane.setBorder(BorderFactory.createTitledBorder("Лог выполнения"));
-		add(scrollPane, BorderLayout.CENTER);
+		logArea.setBackground(new Color(20, 20, 20));
+		logArea.setForeground(new Color(220, 220, 220));
 
-		// Bottom Panel: Progress & Actions
-		JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
-		bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+		JScrollPane logScroll = new JScrollPane(logArea);
+		logScroll.setBorder(BorderFactory.createTitledBorder("Лог выполнения"));
+		add(logScroll, BorderLayout.CENTER);
 
-		JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-		verboseCheckBox = new JCheckBox("Подробный вывод (verbose)", false);
-		controlPanel.add(verboseCheckBox);
-		bottomPanel.add(controlPanel, BorderLayout.WEST);
+		// Нижняя панель
+		JPanel bottomPanel = new JPanel(new BorderLayout(8, 8));
+		bottomPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
 		progressBar = new JProgressBar(0, 100);
 		progressBar.setStringPainted(true);
-		bottomPanel.add(progressBar, BorderLayout.CENTER);
+		progressBar.setString("Готов к работе");
 
 		runButton = new JButton("Запустить");
 		runButton.addActionListener(e -> startInstallation());
+
+		bottomPanel.add(progressBar, BorderLayout.CENTER);
 		bottomPanel.add(runButton, BorderLayout.EAST);
 
 		add(bottomPanel, BorderLayout.SOUTH);
 	}
 
-	private void browseDirectory(JTextField targetField) {
-		JFileChooser chooser = new JFileChooser();
-		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-		if (targetField.getText() != null && !targetField.getText().isEmpty()) {
-			chooser.setCurrentDirectory(new File(targetField.getText()));
-		}
-		int result = chooser.showOpenDialog(this);
-		if (result == JFileChooser.APPROVE_OPTION) {
-			targetField.setText(chooser.getSelectedFile().getAbsolutePath());
-		}
+	private JPanel createDbPanel() {
+		JPanel panel = new JPanel(new GridBagLayout());
+		panel.setBorder(BorderFactory.createTitledBorder("Параметры БД"));
+
+		GridBagConstraints gbc = new GridBagConstraints();
+		gbc.insets = new Insets(3, 3, 3, 3);
+		gbc.anchor = GridBagConstraints.WEST;
+		gbc.fill = GridBagConstraints.HORIZONTAL;
+
+		int row = 0;
+
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		panel.add(new JLabel("Хост:"), gbc);
+
+		gbc.gridx = 1;
+		panel.add(dbHostField, gbc);
+
+		gbc.gridx = 2;
+		panel.add(new JLabel("Порт:"), gbc);
+
+		gbc.gridx = 3;
+		panel.add(dbPortField, gbc);
+
+		row++;
+
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		panel.add(new JLabel("База:"), gbc);
+
+		gbc.gridx = 1;
+		panel.add(dbNameField, gbc);
+
+		gbc.gridx = 2;
+		panel.add(new JLabel("Пользователь:"), gbc);
+
+		gbc.gridx = 3;
+		panel.add(dbUserField, gbc);
+
+		row++;
+
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		panel.add(new JLabel("Пароль:"), gbc);
+
+		gbc.gridx = 1;
+		gbc.gridwidth = 3;
+		panel.add(dbPassField, gbc);
+
+		return panel;
 	}
 
-	private void browseFile(JTextField targetField) {
+	private void updateVisibility() {
+		boolean initMode = modeCombo.getSelectedIndex() == 0;
+		dbPanel.setVisible(initMode);
+
+		revalidate();
+		repaint();
+	}
+
+	private JTextField addPathField(JPanel panel,
+									GridBagConstraints gbc,
+									int row,
+									String label,
+									boolean directoryOnly) {
+
+		JTextField field = new JTextField(40);
+		JButton browseButton = new JButton("...");
+
+		browseButton.addActionListener(e -> browsePath(field, directoryOnly));
+
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		gbc.weightx = 0;
+		gbc.gridwidth = 1;
+		panel.add(new JLabel(label), gbc);
+
+		gbc.gridx = 1;
+		gbc.weightx = 1;
+		panel.add(field, gbc);
+
+		gbc.gridx = 2;
+		gbc.weightx = 0;
+		panel.add(browseButton, gbc);
+
+		return field;
+	}
+
+	private JTextField addTextField(JPanel panel,
+									GridBagConstraints gbc,
+									int row,
+									String label) {
+
+		JTextField field = new JTextField(40);
+
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		gbc.weightx = 0;
+		gbc.gridwidth = 1;
+		panel.add(new JLabel(label), gbc);
+
+		gbc.gridx = 1;
+		gbc.weightx = 1;
+		gbc.gridwidth = 2;
+		panel.add(field, gbc);
+
+		return field;
+	}
+
+	private void browsePath(JTextField targetField, boolean directoryOnly) {
 		JFileChooser chooser = new JFileChooser();
-		chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-		if (targetField.getText() != null && !targetField.getText().isEmpty()) {
-			chooser.setCurrentDirectory(new File(targetField.getText()).getParentFile());
+
+		if (directoryOnly) {
+			chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		} else {
+			chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 		}
+
+		String currentText = targetField.getText();
+
+		if (currentText != null && !currentText.isBlank()) {
+			File current = new File(currentText);
+
+			if (current.exists()) {
+				chooser.setSelectedFile(current);
+			} else if (current.getParentFile() != null && current.getParentFile().exists()) {
+				chooser.setCurrentDirectory(current.getParentFile());
+			}
+		}
+
 		int result = chooser.showOpenDialog(this);
+
 		if (result == JFileChooser.APPROVE_OPTION) {
 			targetField.setText(chooser.getSelectedFile().getAbsolutePath());
 		}
 	}
 
 	private void startInstallation() {
-		String mode = (String) modeCombo.getSelectedItem();
-		String standDir = standDirField.getText().trim();
-		String artifactsDir = artifactsDirField.getText().trim();
+		String standText = standDirField.getText().trim();
 
-		if (standDir.isEmpty()) {
-			JOptionPane.showMessageDialog(this, "Укажите папку стенда!", "Ошибка", JOptionPane.ERROR_MESSAGE);
+		if (standText.isEmpty()) {
+			JOptionPane.showMessageDialog(
+					this,
+					"Укажите папку стенда",
+					"Ошибка",
+					JOptionPane.ERROR_MESSAGE
+			);
 			return;
 		}
 
+		String artifactsText = artifactsDirField.getText().trim();
+
+		if (artifactsText.isEmpty()) {
+			artifactsText = "./artifacts";
+		}
+
+		final Path standDir = Paths.get(standText).toAbsolutePath().normalize();
+		final Path artifactsDir = Paths.get(artifactsText).toAbsolutePath().normalize();
+
 		runButton.setEnabled(false);
 		logArea.setText("");
+		progressBar.setIndeterminate(true);
+		progressBar.setString("Выполняется...");
 
-		// Создаём логгер
 		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-		Path logFile = Paths.get("installer-" + timestamp + ".log");
-		logger = new InstallerLogger(logFile, verboseCheckBox.isSelected());
+		Path logFile = Path.of("installer-" + timestamp + ".log").toAbsolutePath();
 
-		// Подписываемся на логи для GUI
-		logger.addListener((level, message) -> {
-			SwingUtilities.invokeLater(() -> {
-				logArea.append(message + "\n");
-				logArea.setCaretPosition(logArea.getDocument().getLength());
-			});
-		});
+		InstallerLogger logger = new InstallerLogger(logFile, verboseCheckBox.isSelected());
 
-		logger.info("=== Запуск инсталлятора ===");
-		logger.info("Режим: " + mode);
-		logger.info("Стенд: " + standDir);
-		logger.info("Артефакты: " + artifactsDir);
+		logger.addListener((level, message) -> SwingUtilities.invokeLater(() -> {
+			logArea.append(message + System.lineSeparator());
+			logArea.setCaretPosition(logArea.getDocument().getLength());
+		}));
 
-		// Запускаем в отдельном потоке
 		new Thread(() -> {
 			try {
-				Scenario scenario = getScenarioFromCombo();
-				Path standPath = Paths.get(standDir);
-				Path artifactsPath = Paths.get(artifactsDir);
-				Path backupPath = standPath.getParent().resolve("backups").resolve(standPath.getFileName());
+				Scenario scenario = getSelectedScenario();
+
+				Path backupDir = standDir.getParent() == null
+						? Path.of("backups").resolve(standDir.getFileName())
+						: standDir.getParent().resolve("backups").resolve(standDir.getFileName());
 
 				InstallerContext context = new InstallerContext(
-						scenario, standPath, artifactsPath, backupPath, logger
+						scenario,
+						standDir,
+						artifactsDir,
+						backupDir,
+						logger
 				);
 
-				// Заполняем параметры для Init
-				if (scenario == Scenario.INIT) {
-					context.setParameter("db.host", dbHostField.getText());
-					context.setParameter("db.port", dbPortField.getText());
-					context.setParameter("db.name", dbNameField.getText());
-					context.setParameter("db.user", dbUserField.getText());
-					context.setParameter("db.password", new String(dbPassField.getPassword()));
-					String initSql = initSqlField.getText();
-					if (!initSql.isEmpty()) {
-						context.setParameter("init.sql", Paths.get(initSql));
+				context.setUserPrompt(question -> {
+					final boolean[] answer = new boolean[1];
+
+					try {
+						SwingUtilities.invokeAndWait(() -> {
+							int result = JOptionPane.showConfirmDialog(
+									InstallerFrame.this,
+									question,
+									"Подтверждение",
+									JOptionPane.YES_NO_OPTION,
+									JOptionPane.QUESTION_MESSAGE
+							);
+
+							answer[0] = result == JOptionPane.YES_OPTION;
+						});
+					} catch (Exception e) {
+						answer[0] = false;
 					}
+
+					return answer[0];
+				});
+
+				setPathParameter(context, "artifact.core.war", coreWarField.getText());
+				setPathParameter(context, "artifact.libs.zip", libsZipField.getText());
+				setPathParameter(context, "artifact.app.zip", appZipField.getText());
+				setPathParameter(context, "artifact.jetty.template", jettyTemplateField.getText());
+				setPathParameter(context, "artifact.init.sql", initSqlField.getText());
+
+				context.setParameter("ufos.version", emptyToNull(ufosVersionField.getText()));
+				context.setParameter("chown.user", emptyToNull(chownUserField.getText()));
+
+				context.setParameter("skip.db", skipDbCheckBox.isSelected());
+				context.setParameter("force", forceCheckBox.isSelected());
+				context.setParameter("verbose", verboseCheckBox.isSelected());
+
+				if (scenario == Scenario.INIT) {
+					context.setParameter("db.host", dbHostField.getText().trim());
+					context.setParameter("db.port", dbPortField.getText().trim());
+					context.setParameter("db.name", dbNameField.getText().trim());
+					context.setParameter("db.user", dbUserField.getText().trim());
+					context.setParameter("db.password", new String(dbPassField.getPassword()));
 				}
+
+				logger.info("==================================================");
+				logger.info("Запуск инсталлятора из GUI");
+				logger.info("Режим: " + scenario.getDescription());
+				logger.info("Стенд: " + standDir);
+				logger.info("Артефакты: " + artifactsDir);
+				logger.info("Бэкапы: " + backupDir);
+				logger.info("==================================================");
 
 				ScenarioExecutor executor = createExecutor(scenario);
 				executor.execute(context);
 
 				SwingUtilities.invokeLater(() -> {
+					progressBar.setIndeterminate(false);
 					progressBar.setValue(100);
 					progressBar.setString("Готово");
-					JOptionPane.showMessageDialog(this, "Операция выполнена успешно!", "Успех", JOptionPane.INFORMATION_MESSAGE);
+
+					JOptionPane.showMessageDialog(
+							InstallerFrame.this,
+							"Операция завершена успешно",
+							"Успех",
+							JOptionPane.INFORMATION_MESSAGE
+					);
+
 					runButton.setEnabled(true);
 				});
 
 			} catch (Exception ex) {
-				logger.error("Критическая ошибка", ex);
+				logger.error("Ошибка выполнения", ex);
+
 				SwingUtilities.invokeLater(() -> {
-					JOptionPane.showMessageDialog(this, "Ошибка: " + ex.getMessage(), "Ошибка", JOptionPane.ERROR_MESSAGE);
-					runButton.setEnabled(true);
+					progressBar.setIndeterminate(false);
 					progressBar.setValue(0);
 					progressBar.setString("Ошибка");
+
+					JOptionPane.showMessageDialog(
+							InstallerFrame.this,
+							"Ошибка: " + ex.getMessage(),
+							"Ошибка",
+							JOptionPane.ERROR_MESSAGE
+					);
+
+					runButton.setEnabled(true);
 				});
 			}
 		}).start();
 	}
 
-	private Scenario getScenarioFromCombo() {
+	private Scenario getSelectedScenario() {
 		int index = modeCombo.getSelectedIndex();
+
 		switch (index) {
-			case 0: return Scenario.INIT;
-			case 1: return Scenario.UPDATE_CORE;
-			case 2: return Scenario.UPDATE_JETTY;
-			default: return Scenario.INIT;
+			case 0:
+				return Scenario.INIT;
+			case 1:
+				return Scenario.UPDATE_CORE;
+			case 2:
+				return Scenario.UPDATE_JETTY;
+			default:
+				return Scenario.INIT;
 		}
 	}
 
@@ -292,9 +485,31 @@ public class InstallerFrame extends JFrame {
 			case UPDATE_CORE:
 				return new UpdateCoreScenario();
 			case UPDATE_JETTY:
-				throw new UnsupportedOperationException("Сценарий UPDATE_JETTY ещё не реализован");
+				return new UpdateJettyScenario();
 			default:
 				throw new IllegalArgumentException("Неизвестный сценарий: " + scenario);
 		}
+	}
+
+	private void setPathParameter(InstallerContext context, String key, String text) {
+		if (text == null || text.isBlank()) {
+			return;
+		}
+
+		context.setParameter(key, Paths.get(text.trim()).toAbsolutePath().normalize());
+	}
+
+	private String emptyToNull(String value) {
+		if (value == null) {
+			return null;
+		}
+
+		value = value.trim();
+
+		if (value.isEmpty()) {
+			return null;
+		}
+
+		return value;
 	}
 }
