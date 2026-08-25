@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.artifacts;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
@@ -187,7 +188,7 @@ public class ArtifactResolver {
 		return result;
 	}
 
-	public String extractCoreVersion(Path warFile, String fallbackVersion) {
+	public String extractCoreVersion(@NotNull Path warFile, String fallbackVersion) {
 		String fileName = warFile.getFileName().toString();
 		Matcher matcher = CORE_WAR_VERSION_PATTERN.matcher(fileName);
 
@@ -206,7 +207,7 @@ public class ArtifactResolver {
 		return "unknown";
 	}
 
-	private boolean isLikelyJettyTemplate(String fileName) {
+	private boolean isLikelyJettyTemplate(@NotNull String fileName) {
 		String lower = fileName.toLowerCase();
 		return lower.contains("jetty") && lower.contains("template") ||
 				lower.startsWith("template") ||

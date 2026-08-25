@@ -1,8 +1,12 @@
 package ru.otr.ufos.installer.core;
 
+import lombok.Getter;
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Сценарии выполнения инсталлятора
  */
+@Getter
 public enum Scenario {
 	INIT("Первичная установка", "init"),
 	UPDATE_CORE("Обновление ядра и приклада", "update-core"),
@@ -16,15 +20,7 @@ public enum Scenario {
 		this.command = command;
 	}
 
-	public String getDescription() {
-		return description;
-	}
-
-	public String getCommand() {
-		return command;
-	}
-
-	public static Scenario fromCommand(String command) {
+	public static @NotNull Scenario fromCommand(String command) {
 		for (Scenario s : values()) {
 			if (s.command.equals(command)) {
 				return s;

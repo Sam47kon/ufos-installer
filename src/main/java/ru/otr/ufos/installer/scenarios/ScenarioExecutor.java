@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.scenarios;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.core.InstallerContext;
 
 /**
@@ -8,8 +9,9 @@ import ru.otr.ufos.installer.core.InstallerContext;
 public interface ScenarioExecutor {
 	/**
 	 * Выполнить сценарий
+	 *
 	 * @param context контекст выполнения
 	 * @throws Exception при ошибке выполнения
 	 */
-	void execute(InstallerContext context) throws Exception;
+	void execute(@NotNull InstallerContext context) throws Exception;
 }

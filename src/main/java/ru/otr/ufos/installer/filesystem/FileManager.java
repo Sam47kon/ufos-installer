@@ -1,12 +1,15 @@
 package ru.otr.ufos.installer.filesystem;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -39,7 +42,7 @@ public class FileManager {
 		}
 
 		try (Stream<Path> walk = Files.walk(dir)) {
-			walk.sorted((p1, p2) -> p2.compareTo(p1)) // обратный порядок для удаления
+			walk.sorted(Comparator.reverseOrder()) // обратный порядок для удаления
 					.forEach(path -> {
 						try {
 							Files.delete(path);
@@ -79,7 +82,7 @@ public class FileManager {
 	/**
 	 * Копировать файл с перезаписью
 	 */
-	public void copyFile(Path source, Path target) throws IOException {
+	public void copyFile(Path source, @NotNull Path target) throws IOException {
 		createDirectories(target.getParent());
 		Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
 		logger.debug("Скопирован файл: " + source + " -> " + target);
@@ -113,7 +116,7 @@ public class FileManager {
 	/**
 	 * Переместить файл/директорию
 	 */
-	public void move(Path source, Path target) throws IOException {
+	public void move(Path source, @NotNull Path target) throws IOException {
 		createDirectories(target.getParent());
 		Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
 		logger.debug("Перемещено: " + source + " -> " + target);

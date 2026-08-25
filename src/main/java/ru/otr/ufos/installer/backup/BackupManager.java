@@ -1,5 +1,7 @@
 package ru.otr.ufos.installer.backup;
 
+import lombok.Getter;
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.filesystem.FileManager;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
@@ -17,6 +19,7 @@ public class BackupManager {
 
 	private final InstallerLogger logger;
 	private final FileManager fileManager;
+	@Getter
 	private final Path backupBaseDir;
 
 	public BackupManager(InstallerLogger logger, Path backupBaseDir) {
@@ -41,7 +44,7 @@ public class BackupManager {
 		return new BackupResult(backupDir, List.of(""), true);
 	}
 
-	public BackupResult createPartialBackup(Path standDir, String reason, List<String> relativePaths) throws IOException {
+	public BackupResult createPartialBackup(Path standDir, String reason, @NotNull List<String> relativePaths) throws IOException {
 		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
 		Path backupDir = backupBaseDir.resolve("backup-" + timestamp + "-" + reason);
 
@@ -77,9 +80,5 @@ public class BackupManager {
 		logger.info("Частичный бэкап создан");
 
 		return new BackupResult(backupDir, backedUp, false);
-	}
-
-	public Path getBackupBaseDir() {
-		return backupBaseDir;
 	}
 }

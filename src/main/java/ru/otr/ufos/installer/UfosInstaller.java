@@ -1,5 +1,7 @@
 package ru.otr.ufos.installer;
 
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
 import picocli.CommandLine;
 import ru.otr.ufos.installer.cli.CliParser;
 import ru.otr.ufos.installer.core.InstallerContext;
@@ -81,7 +83,7 @@ public class UfosInstaller {
 			return;
 		}
 
-		Path logFile = createLogFile(cli.isVerbose());
+		Path logFile = createLogFile();
 
 		InstallerLogger logger = new InstallerLogger(logFile, cli.isVerbose());
 
@@ -129,7 +131,7 @@ public class UfosInstaller {
 		}
 	}
 
-	private static void fillContextFromCli(InstallerContext context, CliParser cli) {
+	private static void fillContextFromCli(@NotNull InstallerContext context, @NotNull CliParser cli) {
 		context.setParameter("ufos.version", cli.getUfosVersion());
 		context.setParameter("app.version", cli.getAppVersion());
 
@@ -154,20 +156,16 @@ public class UfosInstaller {
 		context.setParameter("verbose", cli.isVerbose());
 	}
 
-	private static ScenarioExecutor createExecutor(Scenario scenario) {
-		switch (scenario) {
-			case INIT:
-				return new InitScenario();
-			case UPDATE_CORE:
-				return new UpdateCoreScenario();
-			case UPDATE_JETTY:
-				return new UpdateJettyScenario();
-			default:
-				throw new IllegalArgumentException("Неизвестный сценарий: " + scenario);
-		}
+	@Contract("_ -> new")
+	private static @NotNull ScenarioExecutor createExecutor(@NotNull Scenario scenario) {
+		return switch (scenario) {
+			case INIT -> new InitScenario();
+			case UPDATE_CORE -> new UpdateCoreScenario();
+			case UPDATE_JETTY -> new UpdateJettyScenario();
+		};
 	}
 
-	private static void showDryRun(InstallerContext context) {
+	private static void showDryRun(@NotNull InstallerContext context) {
 		InstallerLogger logger = context.getLogger();
 
 		logger.step("[DRY-RUN] План выполнения");
@@ -226,7 +224,7 @@ public class UfosInstaller {
 		logger.info("[DRY-RUN] Для реального выполнения уберите флаг --dry-run");
 	}
 
-	private static Path createLogFile(boolean verbose) {
+	private static Path createLogFile() {
 		try {
 			Path logDir = getLogDirectory();
 			Files.createDirectories(logDir);
@@ -260,7 +258,7 @@ public class UfosInstaller {
 		return Path.of(".").toAbsolutePath();
 	}
 
-	private static boolean hasFlag(String[] args, String flag) {
-		return Arrays.stream(args).anyMatch(flag::equals);
+	private static boolean hasFlag(String[] args, @NotNull String flag) {
+		return Arrays.asList(args).contains(flag);
 	}
 }

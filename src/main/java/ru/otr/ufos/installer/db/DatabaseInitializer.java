@@ -1,15 +1,13 @@
 package ru.otr.ufos.installer.db;
 
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.List;
 import java.util.Properties;
 
@@ -54,11 +52,11 @@ public class DatabaseInitializer {
 		String url = buildJdbcUrl(host, port, dbName);
 
 		String sql = """
-            SELECT COUNT(*)
-            FROM information_schema.tables
-            WHERE table_schema = current_schema()
-              AND table_type = 'BASE TABLE'
-            """;
+				SELECT COUNT(*)
+				FROM information_schema.tables
+				WHERE table_schema = current_schema()
+				  AND table_type = 'BASE TABLE'
+				""";
 
 		try (Connection connection = getConnection(url, user, password);
 			 Statement statement = connection.createStatement();
@@ -79,7 +77,7 @@ public class DatabaseInitializer {
 		}
 	}
 
-	public void executeSqlFile(Path sqlFile,
+	public void executeSqlFile(@NotNull Path sqlFile,
 							   String host,
 							   String port,
 							   String dbName,
@@ -137,11 +135,12 @@ public class DatabaseInitializer {
 		return DriverManager.getConnection(url, properties);
 	}
 
-	private String buildJdbcUrl(String host, String port, String dbName) {
+	@Contract(pure = true)
+	private @NotNull String buildJdbcUrl(String host, String port, String dbName) {
 		return "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
 	}
 
-	private String truncate(String text, int maxLength) {
+	private @NotNull String truncate(String text, int maxLength) {
 		if (text == null) {
 			return "";
 		}

@@ -1,18 +1,18 @@
 package ru.otr.ufos.installer.core;
 
+import lombok.Getter;
+import lombok.Setter;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 
 /**
  * Контекст выполнения инсталлятора
  */
+@Getter
+@Setter
 public class InstallerContext {
 
 	private final Scenario scenario;
@@ -57,30 +57,6 @@ public class InstallerContext {
 		};
 	}
 
-	public Scenario getScenario() {
-		return scenario;
-	}
-
-	public Path getStandDir() {
-		return standDir;
-	}
-
-	public Path getArtifactsDir() {
-		return artifactsDir;
-	}
-
-	public Path getBackupDir() {
-		return backupDir;
-	}
-
-	public InstallerLogger getLogger() {
-		return logger;
-	}
-
-	public LocalDateTime getStartTime() {
-		return startTime;
-	}
-
 	public void setParameter(String key, Object value) {
 		parameters.put(key, value);
 	}
@@ -120,23 +96,7 @@ public class InstallerContext {
 		report.put(key, value);
 	}
 
-	public Map<String, String> getReport() {
-		return report;
-	}
-
 	public void addChange(String change) {
 		changes.add(change);
-	}
-
-	public List<String> getChanges() {
-		return changes;
-	}
-
-	public UserPrompt getUserPrompt() {
-		return userPrompt;
-	}
-
-	public void setUserPrompt(UserPrompt userPrompt) {
-		this.userPrompt = userPrompt;
 	}
 }

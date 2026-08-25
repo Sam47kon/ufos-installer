@@ -1,9 +1,9 @@
 package ru.otr.ufos.installer.filesystem;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -25,11 +25,11 @@ public class ArchiveExtractor {
 	/**
 	 * Распаковать ZIP-архив в указанную директорию
 	 *
-	 * @param zipFile путь к ZIP-файлу
+	 * @param zipFile   путь к ZIP-файлу
 	 * @param targetDir целевая директория
 	 * @throws IOException при ошибке распаковки
 	 */
-	public void extract(Path zipFile, Path targetDir) throws IOException {
+	public void extract(@NotNull Path zipFile, Path targetDir) throws IOException {
 		logger.info("Распаковка архива: " + zipFile.getFileName() + " -> " + targetDir);
 
 		fileManager.createDirectories(targetDir);
@@ -67,7 +67,7 @@ public class ArchiveExtractor {
 	/**
 	 * Распаковать ZIP-архив с очисткой целевой директории
 	 */
-	public void extractAndClear(Path zipFile, Path targetDir) throws IOException {
+	public void extractAndClear(@NotNull Path zipFile, Path targetDir) throws IOException {
 		logger.info("Очистка и распаковка: " + zipFile.getFileName() + " -> " + targetDir);
 		fileManager.clearDirectory(targetDir);
 		extract(zipFile, targetDir);
@@ -76,7 +76,7 @@ public class ArchiveExtractor {
 	/**
 	 * Распаковать только определённые директории из архива
 	 */
-	public void extractDirectories(Path zipFile, Path targetDir, String... dirNames) throws IOException {
+	public void extractDirectories(@NotNull Path zipFile, Path targetDir, String... dirNames) throws IOException {
 		logger.info("Выборочная распаковка из: " + zipFile.getFileName());
 
 		fileManager.createDirectories(targetDir);

@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.config;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
@@ -10,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -22,10 +22,10 @@ import java.util.stream.Stream;
 public class ConfigProcessor {
 
 	private static final Pattern UNRESOLVED_CURLY_PATTERN =
-			Pattern.compile("\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}");
+			Pattern.compile("\\$\\{[A-Za-z_][A-Za-z0-9_]*}");
 
 	private static final Pattern UNRESOLVED_BRACKET_PATTERN =
-			Pattern.compile("\\$\\[[A-Za-z_][A-Za-z0-9_]*\\]");
+			Pattern.compile("\\$\\[[A-Za-z_][A-Za-z0-9_]*]");
 
 	private static final Set<String> TEXT_EXTENSIONS = Set.of(
 			".properties",
@@ -64,7 +64,7 @@ public class ConfigProcessor {
 			files = stream
 					.filter(Files::isRegularFile)
 					.filter(this::isProbablyTextFile)
-					.collect(Collectors.toList());
+					.toList();
 		}
 
 		for (Path file : files) {
@@ -117,7 +117,7 @@ public class ConfigProcessor {
 		return TEXT_EXTENSIONS.stream().anyMatch(name::endsWith);
 	}
 
-	private List<String> findUnresolvedVariables(String content) {
+	private @NotNull List<String> findUnresolvedVariables(String content) {
 		List<String> result = new java.util.ArrayList<>();
 
 		Matcher curlyMatcher = UNRESOLVED_CURLY_PATTERN.matcher(content);

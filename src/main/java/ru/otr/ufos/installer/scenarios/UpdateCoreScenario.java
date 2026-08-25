@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.scenarios;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.artifacts.ArtifactResolver;
 import ru.otr.ufos.installer.artifacts.ChecksumValidator;
 import ru.otr.ufos.installer.backup.BackupManager;
@@ -22,13 +23,15 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static ru.otr.ufos.installer.scenarios.ScenariosUtils.findVersionFile;
+
 /**
  * Сценарий 2: обновление ядра и приклада без пересоздания Jetty
  */
 public class UpdateCoreScenario implements ScenarioExecutor {
 
 	@Override
-	public void execute(InstallerContext context) throws Exception {
+	public void execute(@NotNull InstallerContext context) throws Exception {
 		InstallerLogger logger = context.getLogger();
 
 		logger.info("==================================================");
@@ -131,7 +134,7 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 
 			backup = backupManager.createPartialBackup(standDir, "update-core", backupPaths);
 
-			context.addReport("Бэкап", backup.getBackupDir().toAbsolutePath().toString());
+			context.addReport("Бэкап", backup.backupDir().toAbsolutePath().toString());
 
 			// Обновление WAR
 			logger.step("Обновление ядра");
@@ -229,7 +232,7 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 			List<Path> dirs = stream
 					.filter(Files::isDirectory)
 					.filter(p -> p.getFileName().toString().toLowerCase().startsWith("sufd-server"))
-					.collect(Collectors.toList());
+					.toList();
 
 			for (Path dir : dirs) {
 				deleteRecursivelySimple(dir);
@@ -253,10 +256,10 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		}
 	}
 
-	private void deployApp(InstallerContext context,
+	private void deployApp(@NotNull InstallerContext context,
 						   Path appZip,
-						   Path standDir,
-						   ArchiveHelper archiveHelper,
+						   @NotNull Path standDir,
+						   @NotNull ArchiveHelper archiveHelper,
 						   FileManager fileManager) throws IOException {
 
 		InstallerLogger logger = context.getLogger();
@@ -306,26 +309,7 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		}
 	}
 
-	private Path findVersionFile(Path appRoot) throws IOException {
-		Path direct = appRoot.resolve("version.txt");
-		if (Files.exists(direct)) {
-			return direct;
-		}
-
-		Path inConfig = appRoot.resolve("sufd.config/version.txt");
-		if (Files.exists(inConfig)) {
-			return inConfig;
-		}
-
-		Path funcVersion = appRoot.resolve("sufd.config/func.version");
-		if (Files.exists(funcVersion)) {
-			return funcVersion;
-		}
-
-		return null;
-	}
-
-	private String relativize(Path base, Path path) {
+	private @NotNull String relativize(@NotNull Path base, Path path) {
 		return base.relativize(path).toString().replace('\\', '/');
 	}
 }

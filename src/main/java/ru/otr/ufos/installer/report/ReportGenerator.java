@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.report;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
@@ -23,7 +24,7 @@ public class ReportGenerator {
 		this.logger = logger;
 	}
 
-	public void printReport(InstallerContext context) {
+	public void printReport(@NotNull InstallerContext context) {
 		logger.step("Итоговый отчёт");
 
 		List<String> lines = new ArrayList<>();

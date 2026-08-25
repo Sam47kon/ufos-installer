@@ -1,5 +1,7 @@
 package ru.otr.ufos.installer.gui;
 
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.core.Scenario;
 import ru.otr.ufos.installer.logging.InstallerLogger;
@@ -19,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 /**
  * GUI инсталлятора УФОС
  */
+@SuppressWarnings("DuplicatedCode")
 public class InstallerFrame extends JFrame {
 
 	private final JComboBox<String> modeCombo;
@@ -183,7 +186,7 @@ public class InstallerFrame extends JFrame {
 		add(bottomPanel, BorderLayout.SOUTH);
 	}
 
-	private JPanel createDbPanel() {
+	private @NotNull JPanel createDbPanel() {
 		JPanel panel = new JPanel(new GridBagLayout());
 		panel.setBorder(BorderFactory.createTitledBorder("Параметры БД"));
 
@@ -243,11 +246,11 @@ public class InstallerFrame extends JFrame {
 		repaint();
 	}
 
-	private JTextField addPathField(JPanel panel,
-									GridBagConstraints gbc,
-									int row,
-									String label,
-									boolean directoryOnly) {
+	private @NotNull JTextField addPathField(@NotNull JPanel panel,
+											 @NotNull GridBagConstraints gbc,
+											 int row,
+											 String label,
+											 boolean directoryOnly) {
 
 		JTextField field = new JTextField(40);
 		JButton browseButton = new JButton("...");
@@ -271,10 +274,10 @@ public class InstallerFrame extends JFrame {
 		return field;
 	}
 
-	private JTextField addTextField(JPanel panel,
-									GridBagConstraints gbc,
-									int row,
-									String label) {
+	private @NotNull JTextField addTextField(@NotNull JPanel panel,
+											 @NotNull GridBagConstraints gbc,
+											 int row,
+											 String label) {
 
 		JTextField field = new JTextField(40);
 
@@ -466,29 +469,20 @@ public class InstallerFrame extends JFrame {
 	private Scenario getSelectedScenario() {
 		int index = modeCombo.getSelectedIndex();
 
-		switch (index) {
-			case 0:
-				return Scenario.INIT;
-			case 1:
-				return Scenario.UPDATE_CORE;
-			case 2:
-				return Scenario.UPDATE_JETTY;
-			default:
-				return Scenario.INIT;
-		}
+		return switch (index) {
+			case 1 -> Scenario.UPDATE_CORE;
+			case 2 -> Scenario.UPDATE_JETTY;
+			default -> Scenario.INIT;
+		};
 	}
 
-	private ScenarioExecutor createExecutor(Scenario scenario) {
-		switch (scenario) {
-			case INIT:
-				return new InitScenario();
-			case UPDATE_CORE:
-				return new UpdateCoreScenario();
-			case UPDATE_JETTY:
-				return new UpdateJettyScenario();
-			default:
-				throw new IllegalArgumentException("Неизвестный сценарий: " + scenario);
-		}
+	@Contract("_ -> new")
+	private @NotNull ScenarioExecutor createExecutor(@NotNull Scenario scenario) {
+		return switch (scenario) {
+			case INIT -> new InitScenario();
+			case UPDATE_CORE -> new UpdateCoreScenario();
+			case UPDATE_JETTY -> new UpdateJettyScenario();
+		};
 	}
 
 	private void setPathParameter(InstallerContext context, String key, String text) {

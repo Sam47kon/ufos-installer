@@ -1,5 +1,8 @@
 package ru.otr.ufos.installer.db;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,7 +15,7 @@ public class SqlScriptSplitter {
 	private SqlScriptSplitter() {
 	}
 
-	public static List<String> split(String sql) {
+	public static @NotNull List<String> split(String sql) {
 		List<String> statements = new ArrayList<>();
 
 		if (sql == null || sql.isBlank()) {
@@ -164,7 +167,7 @@ public class SqlScriptSplitter {
 		return statements;
 	}
 
-	private static String tryReadDollarTag(String sql, int start) {
+	private static @Nullable String tryReadDollarTag(@NotNull String sql, int start) {
 		if (start >= sql.length() || sql.charAt(start) != '$') {
 			return null;
 		}

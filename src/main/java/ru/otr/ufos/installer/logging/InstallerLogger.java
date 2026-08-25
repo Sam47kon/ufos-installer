@@ -1,5 +1,7 @@
 package ru.otr.ufos.installer.logging;
 
+import lombok.Getter;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
@@ -21,6 +23,7 @@ public class InstallerLogger {
 	private static final DateTimeFormatter TIMESTAMP_FORMAT =
 			DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+	@Getter
 	private final Path logFile;
 	private final List<LogListener> listeners;
 	private final boolean verbose;
@@ -73,7 +76,7 @@ public class InstallerLogger {
 		log(Level.ERROR, message);
 	}
 
-	public void error(String message, Throwable throwable) {
+	public void error(String message, @NotNull Throwable throwable) {
 		log(Level.ERROR, message + ": " + throwable.getMessage());
 		if (verbose) {
 			error(throwableToString(throwable));
@@ -133,16 +136,12 @@ public class InstallerLogger {
 		}
 	}
 
-	private String throwableToString(Throwable throwable) {
+	private @NotNull String throwableToString(@NotNull Throwable throwable) {
 		StringBuilder sb = new StringBuilder();
-		sb.append(throwable.toString()).append("\n");
+		sb.append(throwable).append("\n");
 		for (StackTraceElement element : throwable.getStackTrace()) {
 			sb.append("\tat ").append(element).append("\n");
 		}
 		return sb.toString();
-	}
-
-	public Path getLogFile() {
-		return logFile;
 	}
 }

@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.scenarios;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.artifacts.ArtifactResolver;
 import ru.otr.ufos.installer.artifacts.ChecksumValidator;
 import ru.otr.ufos.installer.config.ConfigProcessor;
@@ -18,13 +19,15 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import static ru.otr.ufos.installer.scenarios.ScenariosUtils.findVersionFile;
+
 /**
  * Сценарий 1: первичная развёртка стенда
  */
 public class InitScenario implements ScenarioExecutor {
 
 	@Override
-	public void execute(InstallerContext context) throws Exception {
+	public void execute(@NotNull InstallerContext context) throws Exception {
 		InstallerLogger logger = context.getLogger();
 
 		logger.info("==================================================");
@@ -203,10 +206,10 @@ public class InitScenario implements ScenarioExecutor {
 		reportGenerator.printReport(context);
 	}
 
-	private void deployApp(InstallerContext context,
+	private void deployApp(@NotNull InstallerContext context,
 						   Path appZip,
-						   Path standDir,
-						   ArchiveHelper archiveHelper,
+						   @NotNull Path standDir,
+						   @NotNull ArchiveHelper archiveHelper,
 						   FileManager fileManager) throws IOException {
 
 		InstallerLogger logger = context.getLogger();
@@ -255,26 +258,7 @@ public class InitScenario implements ScenarioExecutor {
 		}
 	}
 
-	private Path findVersionFile(Path appRoot) throws IOException {
-		Path direct = appRoot.resolve("version.txt");
-		if (Files.exists(direct)) {
-			return direct;
-		}
-
-		Path inConfig = appRoot.resolve("sufd.config/version.txt");
-		if (Files.exists(inConfig)) {
-			return inConfig;
-		}
-
-		Path funcVersion = appRoot.resolve("sufd.config/func.version");
-		if (Files.exists(funcVersion)) {
-			return funcVersion;
-		}
-
-		return null;
-	}
-
-	private Map<String, String> buildVariables(InstallerContext context, String coreVersion) {
+	private @NotNull Map<String, String> buildVariables(@NotNull InstallerContext context, String coreVersion) {
 		Map<String, String> variables = new HashMap<>();
 
 		putIfNotNull(variables, "DB_HOST", context.getStringParameter("db.host"));
@@ -292,7 +276,7 @@ public class InitScenario implements ScenarioExecutor {
 		return variables;
 	}
 
-	private void putIfNotNull(Map<String, String> map, String key, String value) {
+	private void putIfNotNull(@NotNull Map<String, String> map, String key, String value) {
 		map.put(key, value == null ? "" : value);
 	}
 }

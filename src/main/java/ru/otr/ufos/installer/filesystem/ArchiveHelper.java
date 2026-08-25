@@ -1,12 +1,12 @@
 package ru.otr.ufos.installer.filesystem;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -31,7 +31,7 @@ public class ArchiveHelper {
 	 * Распаковать архив в целевую папку.
 	 * Если внутри архива одна корневая папка, она будет "развёрнута".
 	 */
-	public void extractSmart(Path zipFile, Path targetDir, boolean clearTarget) throws IOException {
+	public void extractSmart(@NotNull Path zipFile, Path targetDir, boolean clearTarget) throws IOException {
 		logger.info("Распаковка архива: " + zipFile.getFileName());
 
 		Path tempDir = Files.createTempDirectory("ufos-installer-");
@@ -66,7 +66,7 @@ public class ArchiveHelper {
 		List<Path> children;
 
 		try (Stream<Path> stream = Files.list(extractedDir)) {
-			children = stream.collect(Collectors.toList());
+			children = stream.toList();
 		}
 
 		if (children.size() == 1 && Files.isDirectory(children.get(0))) {
@@ -104,7 +104,7 @@ public class ArchiveHelper {
 		fileManager.createDirectories(targetDir);
 
 		try (Stream<Path> stream = Files.walk(sourceDir)) {
-			List<Path> paths = stream.collect(Collectors.toList());
+			List<Path> paths = stream.toList();
 
 			for (Path sourcePath : paths) {
 				if (sourcePath.equals(sourceDir)) {

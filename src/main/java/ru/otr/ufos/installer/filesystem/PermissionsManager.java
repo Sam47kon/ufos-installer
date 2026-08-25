@@ -1,5 +1,7 @@
 package ru.otr.ufos.installer.filesystem;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
@@ -98,7 +100,7 @@ public class PermissionsManager {
 			// Внутренние файлы и папки
 			if (snapshot.directory) {
 				try (Stream<Path> stream = Files.walk(newPath)) {
-					for (Path p : stream.collect(Collectors.toList())) {
+					for (Path p : stream.toList()) {
 						String rel = relativize(newPath, p);
 						Set<PosixFilePermission> permissions = snapshot.entryPermissions.get(rel);
 
@@ -133,7 +135,7 @@ public class PermissionsManager {
 		}
 
 		try (Stream<Path> stream = Files.walk(root)) {
-			for (Path path : stream.collect(Collectors.toList())) {
+			for (Path path : stream.toList()) {
 				applyDefaultPermissions(path);
 			}
 		} catch (IOException e) {
@@ -207,16 +209,16 @@ public class PermissionsManager {
 		}
 	}
 
-	private String getOwnerName(Path path) {
+	private @Nullable String getOwnerName(Path path) {
 		try {
 			UserPrincipal owner = Files.getOwner(path);
-			return owner == null ? null : owner.getName();
+			return owner.getName();
 		} catch (IOException e) {
 			return null;
 		}
 	}
 
-	private Set<PosixFilePermission> getPermissions(Path path) {
+	private @Nullable Set<PosixFilePermission> getPermissions(Path path) {
 		try {
 			PosixFileAttributeView view =
 					Files.getFileAttributeView(path, PosixFileAttributeView.class);
@@ -253,7 +255,7 @@ public class PermissionsManager {
 		}
 	}
 
-	private String relativize(Path root, Path path) {
+	private @NotNull String relativize(@NotNull Path root, Path path) {
 		return root.relativize(path).toString().replace('\\', '/');
 	}
 }

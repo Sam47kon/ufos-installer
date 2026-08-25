@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.artifacts;
 
+import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
@@ -26,9 +27,10 @@ public class ChecksumValidator {
 	 * Проверить контрольные суммы файлов из файла checksums.sha256
 	 *
 	 * @param checksumsFile файл с контрольными суммами
-	 * @param artifactsDir директория с артефактами
+	 * @param artifactsDir  директория с артефактами
 	 * @return true если все суммы совпадают
 	 */
+	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	public boolean validate(Path checksumsFile, Path artifactsDir) throws IOException {
 		if (!Files.exists(checksumsFile)) {
 			logger.warn("Файл контрольных сумм не найден: " + checksumsFile);
@@ -93,7 +95,7 @@ public class ChecksumValidator {
 	 * Парсить файл контрольных сумм
 	 * Формат: <hash>  <filename>
 	 */
-	private Map<String, String> parseChecksumsFile(Path checksumsFile) throws IOException {
+	private @NotNull Map<String, String> parseChecksumsFile(Path checksumsFile) throws IOException {
 		Map<String, String> checksums = new HashMap<>();
 		List<String> lines = Files.readAllLines(checksumsFile);
 
@@ -117,7 +119,7 @@ public class ChecksumValidator {
 	/**
 	 * Конвертировать байты в hex-строку
 	 */
-	private String bytesToHex(byte[] bytes) {
+	private @NotNull String bytesToHex(byte @NotNull [] bytes) {
 		StringBuilder sb = new StringBuilder();
 		for (byte b : bytes) {
 			sb.append(String.format("%02x", b));

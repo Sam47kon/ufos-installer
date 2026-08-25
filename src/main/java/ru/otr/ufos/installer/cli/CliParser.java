@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.cli;
 
+import lombok.Getter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -16,6 +17,7 @@ import java.util.Map;
 		mixinStandardHelpOptions = true,
 		version = "UFOS Stand Installer 1.0.0"
 )
+@Getter
 public class CliParser implements Runnable {
 
 	@Option(
@@ -178,18 +180,6 @@ public class CliParser implements Runnable {
 		// Класс используется только для парсинга аргументов.
 	}
 
-	public String getMode() {
-		return mode;
-	}
-
-	public Path getStandDir() {
-		return standDir;
-	}
-
-	public Path getArtifactsDir() {
-		return artifactsDir;
-	}
-
 	public Path getBackupDir() {
 		if (backupDir != null && !backupDir.toString().isBlank()) {
 			return backupDir;
@@ -203,85 +193,5 @@ public class CliParser implements Runnable {
 		}
 
 		return parent.resolve("backups").resolve(absoluteStandDir.getFileName());
-	}
-
-	public String getUfosVersion() {
-		return ufosVersion;
-	}
-
-	public Path getCoreWar() {
-		return coreWar;
-	}
-
-	public Path getLibsZip() {
-		return libsZip;
-	}
-
-	public Path getAppZip() {
-		return appZip;
-	}
-
-	public String getAppVersion() {
-		return appVersion;
-	}
-
-	public Path getJettyTemplate() {
-		return jettyTemplate;
-	}
-
-	public Path getInitSql() {
-		return initSql;
-	}
-
-	public String getDbHost() {
-		return dbHost;
-	}
-
-	public String getDbPort() {
-		return dbPort;
-	}
-
-	public String getDbName() {
-		return dbName;
-	}
-
-	public String getDbUser() {
-		return dbUser;
-	}
-
-	public String getDbPassword() {
-		return dbPassword;
-	}
-
-	public boolean isSkipDb() {
-		return skipDb;
-	}
-
-	public String getChownUser() {
-		return chownUser;
-	}
-
-	public Map<String, String> getCustomVariables() {
-		return customVariables;
-	}
-
-	public boolean isForce() {
-		return force;
-	}
-
-	public boolean isDryRun() {
-		return dryRun;
-	}
-
-	public boolean isVerbose() {
-		return verbose;
-	}
-
-	public boolean isGui() {
-		return gui;
-	}
-
-	public boolean isCli() {
-		return cli;
 	}
 }
