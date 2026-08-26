@@ -3,6 +3,7 @@
 
 # Log file
 *.log
+installer-report-*.txt
 
 # BlueJ files
 *.ctxt

@@ -56,7 +56,7 @@ public class InstallerFrame extends JFrame {
 	public InstallerFrame() {
 		setTitle("UFOS Stand Installer");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setSize(1000, 800);
+		setSize(1000, 1000);
 		setLocationRelativeTo(null);
 		setLayout(new BorderLayout(8, 8));
 

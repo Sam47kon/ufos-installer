@@ -62,25 +62,14 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		Path versionFile = standDir.resolve("version.txt");
 
 		if (!Files.exists(webappsDir)) {
-			throw new IllegalStateException(
-					"Каталог webapps не найден. Похоже, это не стенд УФОС: " + standDir
-			);
+			throw new IllegalStateException("Каталог webapps не найден. Похоже, это не стенд УФОС: " + standDir);
 		}
 
-		ArtifactResolver resolver =
-				new ArtifactResolver(logger, context.getArtifactsDir());
+		ArtifactResolver resolver = new ArtifactResolver(logger, context.getArtifactsDir());
 
-		Path newCoreWar = resolver.resolveCoreWar(
-				context.getPathParameter("artifact.core.war")
-		);
-
-		Path libsZip = resolver.resolveLibsZip(
-				context.getPathParameter("artifact.libs.zip")
-		);
-
-		Path appZip = resolver.resolveAppZip(
-				context.getPathParameter("artifact.app.zip")
-		);
+		Path newCoreWar = resolver.resolveCoreWar(context.getPathParameter("artifact.core.war"));
+		Path libsZip = resolver.resolveLibsZip(context.getPathParameter("artifact.libs.zip"));
+		Path appZip = resolver.resolveAppZip(context.getPathParameter("artifact.app.zip"));
 
 		ChecksumValidator checksumValidator = new ChecksumValidator(logger);
 		Path checksumsFile = context.getArtifactsDir().resolve("checksums.sha256");
@@ -94,20 +83,14 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 
 		String oldVersion = "unknown";
 		Path oldWar = currentWars.isEmpty() ? null : currentWars.get(0);
-
 		if (oldWar != null) {
 			oldVersion = resolver.extractCoreVersion(oldWar, null);
 		}
 
-		String newVersion = resolver.extractCoreVersion(
-				newCoreWar,
-				context.getStringParameter("ufos.version")
-		);
+		String newVersion = resolver.extractCoreVersion(newCoreWar, context.getStringParameter("ufos.version"));
 
 		logger.info("Текущая версия: " + oldVersion);
 		logger.info("Новая версия:   " + newVersion);
-
-		BackupResult backup = null;
 
 		// Права до изменений
 		PermissionsManager.Snapshot libExtSnapshot = permissionsManager.snapshot(libExtDir);
@@ -116,69 +99,62 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		PermissionsManager.Snapshot versionSnapshot = permissionsManager.snapshot(versionFile);
 		PermissionsManager.Snapshot oldWarSnapshot = oldWar == null ? null : permissionsManager.snapshot(oldWar);
 
+		BackupResult backup = null;
 		try {
 			// Бэкап только того, что заменяем
 			List<String> backupPaths = new ArrayList<>();
-
-			for (Path war : currentWars) {
-				backupPaths.add(relativize(standDir, war));
-			}
+			currentWars.stream().map(war -> relativize(standDir, war)).forEach(backupPaths::add);
 
 			backupPaths.add("lib/ext");
-			backupPaths.add("sufd.config");
-			backupPaths.add("sql-migrations");
-
+			if (null != appZip) {
+				backupPaths.add("sufd.config");
+				backupPaths.add("sql-migrations");
+			}
 			if (Files.exists(versionFile)) {
 				backupPaths.add("version.txt");
 			}
 
 			backup = backupManager.createPartialBackup(standDir, "update-core", backupPaths);
-
 			context.addReport("Бэкап", backup.backupDir().toAbsolutePath().toString());
 
 			// Обновление WAR
 			logger.step("Обновление ядра");
-
 			for (Path war : currentWars) {
 				logger.info("Удаление старого WAR: " + war.getFileName());
 				Files.deleteIfExists(war);
 				context.addChange("Удалено: " + relativize(standDir, war));
 			}
-
 			// Удаляем возможные распакованные директории
 			deleteExplodedWars(webappsDir);
-
 			Path targetWar = webappsDir.resolve(newCoreWar.getFileName());
 			fileManager.copyFile(newCoreWar, targetWar);
-
 			logger.info("Новый WAR размещён: " + targetWar);
 			context.addChange("Создано: " + relativize(standDir, targetWar));
 
 			// Обновление библиотек
 			logger.step("Обновление библиотек lib/ext");
-
 			archiveHelper.extractSmart(libsZip, libExtDir, true);
 			context.addChange("Обновлено: lib/ext/");
 
 			// Обновление приклада
 			logger.step("Обновление приклада");
-
 			deployApp(context, appZip, standDir, archiveHelper, fileManager);
 
-			// Восстановление прав
-			logger.step("Восстановление прав доступа");
+			if (!permissionsManager.isWindows()) {
+				// Восстановление прав
+				logger.step("Восстановление прав доступа");
+				String chownUser = context.getStringParameter("chown.user");
 
-			String chownUser = context.getStringParameter("chown.user");
+				permissionsManager.restore(libExtSnapshot, libExtDir, chownUser);
+				permissionsManager.restore(sufdConfigSnapshot, sufdConfigDir, chownUser);
+				permissionsManager.restore(sqlMigrationsSnapshot, sqlMigrationsDir, chownUser);
+				permissionsManager.restore(versionSnapshot, versionFile, chownUser);
 
-			permissionsManager.restore(libExtSnapshot, libExtDir, chownUser);
-			permissionsManager.restore(sufdConfigSnapshot, sufdConfigDir, chownUser);
-			permissionsManager.restore(sqlMigrationsSnapshot, sqlMigrationsDir, chownUser);
-			permissionsManager.restore(versionSnapshot, versionFile, chownUser);
-
-			if (oldWarSnapshot != null) {
-				permissionsManager.applyFilePermissions(targetWar, oldWarSnapshot.rootPermissions);
-			} else {
-				permissionsManager.applyDefaults(targetWar);
+				if (oldWarSnapshot != null) {
+					permissionsManager.applyFilePermissions(targetWar, oldWarSnapshot.rootPermissions);
+				} else {
+					permissionsManager.applyDefaults(targetWar);
+				}
 			}
 
 			// Отчёт
@@ -187,7 +163,7 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 			context.addReport("Новая версия ядра", newVersion);
 			context.addReport("Новый WAR", targetWar.toAbsolutePath().toString());
 			context.addReport("Архив библиотек", libsZip.getFileName().toString());
-			context.addReport("Архив приклада", appZip.getFileName().toString());
+			context.addReport("Архив приклада", null == appZip ? "Установка приклада пропущена" : appZip.getFileName().toString());
 
 			ReportGenerator reportGenerator = new ReportGenerator(logger);
 			reportGenerator.printReport(context);
@@ -196,13 +172,7 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 			logger.error("Ошибка обновления", e);
 
 			if (backup != null) {
-				boolean rolledBack = rollbackManager.requestRollback(
-						backup,
-						standDir,
-						context.getUserPrompt(),
-						e
-				);
-
+				boolean rolledBack = rollbackManager.requestRollback(backup, standDir, context.getUserPrompt(), e);
 				if (rolledBack) {
 					context.addReport("Откат", "выполнен");
 				} else {
@@ -263,6 +233,10 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 						   FileManager fileManager) throws IOException {
 
 		InstallerLogger logger = context.getLogger();
+		if (null == appZip) {
+			logger.info("Артефакт приклада не задан. Установка приклада пропущена");
+			return;
+		}
 
 		Path tempDir = archiveHelper.extractToTemp(appZip);
 

@@ -73,13 +73,13 @@ public class ArchiveHelper {
 			Path singleChild = children.get(0);
 
 			// Если внутри единственной папки есть характерные каталоги, считаем её корнем
-			if (Files.exists(singleChild.resolve("etc")) ||
-					Files.exists(singleChild.resolve("webapps")) ||
-					Files.exists(singleChild.resolve("lib")) ||
-					Files.exists(singleChild.resolve("modules")) ||
-					Files.exists(singleChild.resolve("sufd.config")) ||
-					Files.exists(singleChild.resolve("sql-migrations")) ||
-					Files.exists(singleChild.resolve("start.jar"))) {
+			if (Files.exists(singleChild.resolve("etc"))
+					|| Files.exists(singleChild.resolve("webapps"))
+					|| Files.exists(singleChild.resolve("lib"))
+					|| Files.exists(singleChild.resolve("modules"))
+					|| Files.exists(singleChild.resolve("sufd.config"))
+					|| Files.exists(singleChild.resolve("sql-migrations"))
+					|| Files.exists(singleChild.resolve("start.jar"))) {
 				logger.debug("Архив имеет единственную корневую папку: " + singleChild.getFileName());
 				return singleChild;
 			}

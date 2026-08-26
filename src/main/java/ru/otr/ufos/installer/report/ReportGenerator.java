@@ -56,10 +56,10 @@ public class ReportGenerator {
 			logger.info(line);
 		}
 
-		saveReportToFile(context, lines);
+		saveReportToFile(lines);
 	}
 
-	private void saveReportToFile(InstallerContext context, List<String> lines) {
+	private void saveReportToFile(List<String> lines) {
 		try {
 			String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
 			Path reportFile = Path.of("installer-report-" + timestamp + ".txt");

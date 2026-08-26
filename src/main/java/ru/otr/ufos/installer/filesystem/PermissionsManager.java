@@ -1,5 +1,6 @@
 package ru.otr.ufos.installer.filesystem;
 
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.otr.ufos.installer.logging.InstallerLogger;
@@ -24,9 +25,12 @@ import java.util.stream.Stream;
 public class PermissionsManager {
 
 	private final InstallerLogger logger;
+	@Getter
+	private final boolean isWindows;
 
 	public PermissionsManager(InstallerLogger logger) {
 		this.logger = logger;
+		this.isWindows = FileManager.isWindows();
 	}
 
 	public static class Snapshot {
@@ -38,7 +42,7 @@ public class PermissionsManager {
 	}
 
 	public Snapshot snapshot(Path path) {
-		if (FileManager.isWindows()) {
+		if (isWindows) {
 			return null;
 		}
 
@@ -74,7 +78,7 @@ public class PermissionsManager {
 	}
 
 	public void restore(Snapshot snapshot, Path newPath, String chownUser) {
-		if (FileManager.isWindows()) {
+		if (isWindows) {
 			return;
 		}
 
@@ -126,7 +130,7 @@ public class PermissionsManager {
 	}
 
 	public void applyDefaults(Path root) {
-		if (FileManager.isWindows()) {
+		if (isWindows) {
 			return;
 		}
 
@@ -144,7 +148,7 @@ public class PermissionsManager {
 	}
 
 	public void applyFilePermissions(Path file, Set<PosixFilePermission> permissions) {
-		if (FileManager.isWindows()) {
+		if (isWindows) {
 			return;
 		}
 
@@ -161,7 +165,7 @@ public class PermissionsManager {
 	}
 
 	public void changeOwner(Path path, String owner) {
-		if (FileManager.isWindows()) {
+		if (isWindows) {
 			logger.debug("chown пропускается на Windows");
 			return;
 		}
@@ -244,9 +248,7 @@ public class PermissionsManager {
 		}
 
 		try {
-			PosixFileAttributeView view =
-					Files.getFileAttributeView(path, PosixFileAttributeView.class);
-
+			PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class);
 			if (view != null) {
 				view.setPermissions(permissions);
 			}

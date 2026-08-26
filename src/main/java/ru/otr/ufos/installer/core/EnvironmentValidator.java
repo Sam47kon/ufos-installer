@@ -24,9 +24,7 @@ public class EnvironmentValidator {
 		String version = System.getProperty("java.version");
 
 		if (feature < 17) {
-			throw new IllegalStateException(
-					"Требуется Java 17 или выше. Текущая версия: " + version
-			);
+			throw new IllegalStateException("Требуется Java 17 или выше. Текущая версия: " + version);
 		}
 
 		logger.info("Java: " + version + " -- OK");

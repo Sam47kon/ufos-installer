@@ -1,6 +1,7 @@
 package ru.otr.ufos.installer.artifacts;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
@@ -17,8 +18,7 @@ import java.util.stream.Stream;
  */
 public class ArtifactResolver {
 
-	private static final Pattern CORE_WAR_VERSION_PATTERN =
-			Pattern.compile("^sufd-server-(.+)\\.war$", Pattern.CASE_INSENSITIVE);
+	private static final Pattern CORE_WAR_VERSION_PATTERN = Pattern.compile("^sufd-server-(.+)\\.war$", Pattern.CASE_INSENSITIVE);
 
 	private final InstallerLogger logger;
 	private final Path artifactsDir;
@@ -35,23 +35,13 @@ public class ArtifactResolver {
 			return explicitPath;
 		}
 
-		List<Path> candidates = findFiles(name ->
-				name.toLowerCase().startsWith("sufd-server") &&
-						name.toLowerCase().endsWith(".war")
-		);
-
+		List<Path> candidates = findFiles(name -> name.toLowerCase().startsWith("sufd-server") && name.toLowerCase().endsWith(".war"));
 		if (candidates.isEmpty()) {
-			throw new IllegalStateException(
-					"Не найден WAR-файл ядра в каталоге артефактов: " + artifactsDir +
-							". Ожидался файл вида sufd-server-<version>.war"
-			);
+			throw new IllegalStateException("Не найден WAR-файл ядра в каталоге артефактов: " + artifactsDir + ". Ожидался файл вида sufd-server-<version>.war");
 		}
 
 		if (candidates.size() > 1) {
-			throw new IllegalStateException(
-					"Найдено несколько WAR-файлов ядра. Укажите явно через --core-war: " +
-							candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", "))
-			);
+			throw new IllegalStateException("Найдено несколько WAR-файлов ядра. Укажите явно через --core-war: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
 		}
 
 		Path result = candidates.get(0);
@@ -66,23 +56,13 @@ public class ArtifactResolver {
 			return explicitPath;
 		}
 
-		List<Path> candidates = findFiles(name ->
-				name.toLowerCase().startsWith("sufd-server-libs") &&
-						name.toLowerCase().endsWith(".zip")
-		);
-
+		List<Path> candidates = findFiles(name -> name.toLowerCase().startsWith("sufd-server-libs") && name.toLowerCase().endsWith(".zip"));
 		if (candidates.isEmpty()) {
-			throw new IllegalStateException(
-					"Не найден архив библиотек в каталоге артефактов: " + artifactsDir +
-							". Ожидался файл вида sufd-server-libs-<version>.zip"
-			);
+			throw new IllegalStateException("Не найден архив библиотек в каталоге артефактов: " + artifactsDir + ". Ожидался файл вида sufd-server-libs-<version>.zip");
 		}
 
 		if (candidates.size() > 1) {
-			throw new IllegalStateException(
-					"Найдено несколько архивов библиотек. Укажите явно через --libs-zip: " +
-							candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", "))
-			);
+			throw new IllegalStateException("Найдено несколько архивов библиотек. Укажите явно через --libs-zip: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
 		}
 
 		Path result = candidates.get(0);
@@ -90,31 +70,20 @@ public class ArtifactResolver {
 		return result;
 	}
 
-	public Path resolveAppZip(Path explicitPath) throws IOException {
+	public @Nullable Path resolveAppZip(Path explicitPath) throws IOException {
 		if (explicitPath != null) {
 			requireFile(explicitPath);
 			logger.info("Архив приклада указан явно: " + explicitPath);
 			return explicitPath;
 		}
 
-		List<Path> candidates = findFiles(name ->
-				name.toLowerCase().endsWith(".zip") &&
-						!name.toLowerCase().startsWith("sufd-server-libs") &&
-						!isLikelyJettyTemplate(name)
-		);
-
+		List<Path> candidates = findFiles(name -> name.toLowerCase().endsWith(".zip") && !name.toLowerCase().startsWith("sufd-server-libs") && !isLikelyJettyTemplate(name));
 		if (candidates.isEmpty()) {
-			throw new IllegalStateException(
-					"Не найден архив приклада в каталоге артефактов: " + artifactsDir +
-							". Укажите его явно через --app-zip"
-			);
+			return null;
 		}
 
 		if (candidates.size() > 1) {
-			throw new IllegalStateException(
-					"Найдено несколько возможных архивов приклада. Укажите явно через --app-zip: " +
-							candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", "))
-			);
+			throw new IllegalStateException("Найдено несколько возможных архивов приклада. Укажите явно через --app-zip: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
 		}
 
 		Path result = candidates.get(0);
@@ -131,11 +100,7 @@ public class ArtifactResolver {
 			return explicitPath;
 		}
 
-		List<Path> candidates = findFiles(name ->
-				name.toLowerCase().endsWith(".zip") &&
-						isLikelyJettyTemplate(name)
-		);
-
+		List<Path> candidates = findFiles(name -> name.toLowerCase().endsWith(".zip") && isLikelyJettyTemplate(name));
 		if (candidates.isEmpty()) {
 			// Также разрешаем каталог template рядом с артефактами
 			Path templateDir = artifactsDir.resolve("template");
@@ -143,18 +108,11 @@ public class ArtifactResolver {
 				logger.info("Найден каталог шаблона: " + templateDir);
 				return templateDir;
 			}
-
-			throw new IllegalStateException(
-					"Не найден шаблон Jetty в каталоге артефактов: " + artifactsDir +
-							". Ожидался архив вида jetty-template-<version>.zip или каталог template/"
-			);
+			throw new IllegalStateException("Не найден шаблон Jetty в каталоге артефактов: " + artifactsDir + ". Ожидался архив вида jetty-template-<version>.zip или каталог template/");
 		}
 
 		if (candidates.size() > 1) {
-			throw new IllegalStateException(
-					"Найдено несколько возможных шаблонов Jetty. Укажите явно через --jetty-template: " +
-							candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", "))
-			);
+			throw new IllegalStateException("Найдено несколько возможных шаблонов Jetty. Укажите явно через --jetty-template: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
 		}
 
 		Path result = candidates.get(0);
@@ -170,17 +128,13 @@ public class ArtifactResolver {
 		}
 
 		List<Path> candidates = findFiles(name -> name.toLowerCase().endsWith(".sql"));
-
 		if (candidates.isEmpty()) {
 			logger.warn("Init SQL не найден. Инициализация БД будет пропущена.");
 			return null;
 		}
 
 		if (candidates.size() > 1) {
-			throw new IllegalStateException(
-					"Найдено несколько SQL-файлов. Укажите явно через --init-sql: " +
-							candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", "))
-			);
+			throw new IllegalStateException("Найдено несколько SQL-файлов. Укажите явно через --init-sql: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
 		}
 
 		Path result = candidates.get(0);
@@ -209,9 +163,8 @@ public class ArtifactResolver {
 
 	private boolean isLikelyJettyTemplate(@NotNull String fileName) {
 		String lower = fileName.toLowerCase();
-		return lower.contains("jetty") && lower.contains("template") ||
-				lower.startsWith("template") ||
-				lower.contains("stand-template");
+		return lower.contains("jetty")
+				&& lower.contains("template") || lower.startsWith("template") || lower.contains("stand-template");
 	}
 
 	private List<Path> findFiles(FilePredicate predicate) throws IOException {
