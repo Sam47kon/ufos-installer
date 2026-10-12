@@ -1,6 +1,7 @@
 package ru.otr.ufos.installer.scenarios;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import ru.otr.ufos.installer.artifacts.ArtifactResolver;
 import ru.otr.ufos.installer.artifacts.ChecksumValidator;
 import ru.otr.ufos.installer.config.ConfigProcessor;
@@ -13,13 +14,10 @@ import ru.otr.ufos.installer.filesystem.PermissionsManager;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 import ru.otr.ufos.installer.report.ReportGenerator;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-
-import static ru.otr.ufos.installer.scenarios.ScenariosUtils.findVersionFile;
 
 /**
  * Сценарий 1: первичная развёртка стенда
@@ -39,29 +37,14 @@ public class InitScenario implements ScenarioExecutor {
 		environmentValidator.validateOs();
 		environmentValidator.validateStandParentWritable(context.getStandDir(), false);
 
-		ArtifactResolver resolver =
-				new ArtifactResolver(logger, context.getArtifactsDir());
+		ArtifactResolver resolver = new ArtifactResolver(logger, context.getArtifactsDir());
 
 		// Поиск артефактов
-		Path templateSource = resolver.resolveJettyTemplate(
-				context.getPathParameter("artifact.jetty.template")
-		);
-
-		Path coreWar = resolver.resolveCoreWar(
-				context.getPathParameter("artifact.core.war")
-		);
-
-		Path libsZip = resolver.resolveLibsZip(
-				context.getPathParameter("artifact.libs.zip")
-		);
-
-		Path appZip = resolver.resolveAppZip(
-				context.getPathParameter("artifact.app.zip")
-		);
-
-		Path initSql = resolver.resolveInitSql(
-				context.getPathParameter("artifact.init.sql")
-		);
+		Path templateSource = resolver.resolveJettyTemplate(context.getJettyTemplate());
+		Path coreWar = resolver.resolveCoreWar(context.getCoreWar());
+		Path libsZip = resolver.resolveLibsZip(context.getLibsZip());
+		@Nullable Path appZip = resolver.resolveAppZip(context.getAppZip());
+		Path initSql = resolver.resolveInitSql(context.getInitSql());
 
 		// Контрольные суммы
 		ChecksumValidator checksumValidator = new ChecksumValidator(logger);
@@ -72,13 +55,13 @@ public class InitScenario implements ScenarioExecutor {
 		}
 
 		// Параметры БД
-		String dbHost = context.getStringParameter("db.host");
-		String dbPort = context.getStringParameter("db.port");
-		String dbName = context.getStringParameter("db.name");
-		String dbUser = context.getStringParameter("db.user");
-		String dbPassword = context.getStringParameter("db.password");
+		String dbHost = context.getDbHost();
+		String dbPort = context.getDbPort();
+		String dbName = context.getDbName();
+		String dbUser = context.getDbUser();
+		String dbPassword = context.getDbPassword();
 
-		boolean skipDb = context.getBooleanParameter("skip.db", false);
+		boolean skipDb = context.isSkipDb();
 
 		DatabaseInitializer databaseInitializer = new DatabaseInitializer(logger);
 
@@ -95,17 +78,14 @@ public class InitScenario implements ScenarioExecutor {
 
 		Path standDir = context.getStandDir();
 
-		boolean force = context.getBooleanParameter("force", false);
+		boolean force = context.isForce();
 
 		if (Files.exists(standDir)) {
 			try (var stream = Files.list(standDir)) {
 				boolean notEmpty = stream.findAny().isPresent();
 
 				if (notEmpty && !force) {
-					throw new IllegalStateException(
-							"Каталог стенда уже существует и не пуст: " + standDir +
-									". Используйте --force для перезаписи."
-					);
+					throw new IllegalStateException("Каталог стенда уже существует и не пуст: " + standDir + ". Используйте --force для перезаписи.");
 				}
 
 				if (notEmpty) {
@@ -126,7 +106,7 @@ public class InitScenario implements ScenarioExecutor {
 		}
 
 		// Версия ядра
-		String ufosVersion = context.getStringParameter("ufos.version");
+		String ufosVersion = context.getUfosVersion();
 		String coreVersion = resolver.extractCoreVersion(coreWar, ufosVersion);
 
 		// Подстановка переменных в etc
@@ -158,8 +138,7 @@ public class InitScenario implements ScenarioExecutor {
 
 		// Приклад
 		logger.step("Размещение приклада");
-
-		deployApp(context, appZip, standDir, archiveHelper, fileManager);
+		ScenariosUtils.deployApp(context, appZip, standDir, archiveHelper, fileManager);
 
 		// Init SQL
 		if (!skipDb) {
@@ -185,7 +164,7 @@ public class InitScenario implements ScenarioExecutor {
 		PermissionsManager permissionsManager = new PermissionsManager(logger);
 		permissionsManager.applyDefaults(standDir);
 
-		String chownUser = context.getStringParameter("chown.user");
+		String chownUser = context.getChownUser();
 
 		if (chownUser != null && !chownUser.isBlank()) {
 			permissionsManager.changeOwner(standDir, chownUser);
@@ -197,7 +176,7 @@ public class InitScenario implements ScenarioExecutor {
 		context.addReport("Версия ядра", coreVersion);
 		context.addReport("WAR-файл ядра", targetWar.toAbsolutePath().toString());
 		context.addReport("Архив библиотек", libsZip.getFileName().toString());
-		context.addReport("Архив приклада", appZip.getFileName().toString());
+		context.addReport("Архив приклада", null == appZip ? "Установка приклада пропущена" : appZip.getFileName().toString());
 		context.addReport("Шаблон", templateSource.toString());
 		context.addReport("Init SQL", initSql == null ? "не выполнен" : initSql.getFileName().toString());
 		context.addReport("БД", dbUser + "@" + dbHost + ":" + dbPort + "/" + dbName);
@@ -206,69 +185,17 @@ public class InitScenario implements ScenarioExecutor {
 		reportGenerator.printReport(context);
 	}
 
-	private void deployApp(@NotNull InstallerContext context,
-						   Path appZip,
-						   @NotNull Path standDir,
-						   @NotNull ArchiveHelper archiveHelper,
-						   FileManager fileManager) throws IOException {
-
-		InstallerLogger logger = context.getLogger();
-
-		Path tempDir = archiveHelper.extractToTemp(appZip);
-
-		try {
-			Path appRoot = archiveHelper.detectEffectiveRoot(tempDir);
-
-			Path srcConfig = appRoot.resolve("sufd.config");
-			Path srcMigrations = appRoot.resolve("sql-migrations");
-
-			Path targetConfig = standDir.resolve("sufd.config");
-			Path targetMigrations = standDir.resolve("sql-migrations");
-
-			if (Files.exists(srcConfig)) {
-				archiveHelper.copyContents(srcConfig, targetConfig);
-				logger.info("Размещён приклад: sufd.config/");
-				context.addChange("Обновлено: sufd.config/");
-			} else {
-				logger.warn("В архиве приклада не найдена папка sufd.config");
-			}
-
-			if (Files.exists(srcMigrations)) {
-				archiveHelper.copyContents(srcMigrations, targetMigrations);
-				logger.info("Размещены миграции: sql-migrations/");
-				context.addChange("Обновлено: sql-migrations/");
-			} else {
-				logger.warn("В архиве приклада не найдена папка sql-migrations");
-			}
-
-			// version.txt
-			Path versionFile = findVersionFile(appRoot);
-
-			if (versionFile != null) {
-				Path targetVersion = standDir.resolve("version.txt");
-				fileManager.copyFile(versionFile, targetVersion);
-				logger.info("Размещён файл версии: version.txt");
-				context.addChange("Создано/обновлено: version.txt");
-			} else {
-				logger.warn("version.txt не найден в архиве приклада");
-			}
-
-		} finally {
-			fileManager.deleteRecursively(tempDir);
-		}
-	}
-
 	private @NotNull Map<String, String> buildVariables(@NotNull InstallerContext context, String coreVersion) {
 		Map<String, String> variables = new HashMap<>();
 
-		putIfNotNull(variables, "DB_HOST", context.getStringParameter("db.host"));
-		putIfNotNull(variables, "DB_PORT", context.getStringParameter("db.port"));
-		putIfNotNull(variables, "DB_NAME", context.getStringParameter("db.name"));
-		putIfNotNull(variables, "DB_USER", context.getStringParameter("db.user"));
+		putIfNotNull(variables, "DB_HOST", context.getDbHost());
+		putIfNotNull(variables, "DB_PORT", context.getDbPort());
+		putIfNotNull(variables, "DB_NAME", context.getDbName());
+		putIfNotNull(variables, "DB_USER", context.getDbUser());
 
 		// Пароль тоже подставляем, если нужно.
 		// Если не хочется хранить его в конфигах, можно потом заменить на маску.
-		putIfNotNull(variables, "DB_PASSWORD", context.getStringParameter("db.password"));
+		putIfNotNull(variables, "DB_PASSWORD", context.getDbPassword());
 
 		putIfNotNull(variables, "VERSION", coreVersion);
 		putIfNotNull(variables, "STAND_DIR", context.getStandDir().toAbsolutePath().toString());

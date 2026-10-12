@@ -164,7 +164,7 @@ public class ArtifactResolver {
 	private boolean isLikelyJettyTemplate(@NotNull String fileName) {
 		String lower = fileName.toLowerCase();
 		return lower.contains("jetty")
-				&& lower.contains("template") || lower.startsWith("template") || lower.contains("stand-template");
+			   && lower.contains("template") || lower.startsWith("template") || lower.contains("stand-template");
 	}
 
 	private List<Path> findFiles(FilePredicate predicate) throws IOException {

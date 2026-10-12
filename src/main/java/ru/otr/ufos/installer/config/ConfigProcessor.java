@@ -89,7 +89,7 @@ public class ConfigProcessor {
 			if (!unresolved.isEmpty()) {
 				unresolvedCount++;
 				logger.warn("Незаменённые переменные в " + file.getFileName() + ": " +
-						String.join(", ", unresolved));
+							String.join(", ", unresolved));
 			}
 		}
 

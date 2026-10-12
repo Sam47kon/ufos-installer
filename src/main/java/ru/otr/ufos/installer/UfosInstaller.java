@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Scanner;
 
 /**
  * Точка входа инсталлятора УФОС
@@ -102,6 +103,16 @@ public class UfosInstaller {
 					cli.getBackupDir(),
 					logger
 			);
+			// Консольный prompt
+			context.setUserPrompt(question -> {
+				System.out.print(question + " [y/N]: ");
+				Scanner scanner = new Scanner(System.in);
+				if (scanner.hasNextLine()) {
+					String answer = scanner.nextLine().trim().toLowerCase();
+					return answer.equals("y") || answer.equals("yes") || answer.equals("да");
+				}
+				return false;
+			});
 
 			fillContextFromCli(context, cli);
 
@@ -132,28 +143,28 @@ public class UfosInstaller {
 	}
 
 	private static void fillContextFromCli(@NotNull InstallerContext context, @NotNull CliParser cli) {
-		context.setParameter("ufos.version", cli.getUfosVersion());
-		context.setParameter("app.version", cli.getAppVersion());
+		context.setUfosVersion(cli.getUfosVersion());
+		context.setAppVersion(cli.getAppVersion());
 
-		context.setParameter("artifact.core.war", cli.getCoreWar());
-		context.setParameter("artifact.libs.zip", cli.getLibsZip());
-		context.setParameter("artifact.app.zip", cli.getAppZip());
-		context.setParameter("artifact.jetty.template", cli.getJettyTemplate());
-		context.setParameter("artifact.init.sql", cli.getInitSql());
+		context.setCoreWar(cli.getCoreWar());
+		context.setLibsZip(cli.getLibsZip());
+		context.setAppZip(cli.getAppZip());
+		context.setJettyTemplate(cli.getJettyTemplate());
+		context.setInitSql(cli.getInitSql());
 
-		context.setParameter("db.host", cli.getDbHost());
-		context.setParameter("db.port", cli.getDbPort());
-		context.setParameter("db.name", cli.getDbName());
-		context.setParameter("db.user", cli.getDbUser());
-		context.setParameter("db.password", cli.getDbPassword());
+		context.setDbHost(cli.getDbHost());
+		context.setDbPort(cli.getDbPort());
+		context.setDbName(cli.getDbName());
+		context.setDbUser(cli.getDbUser());
+		context.setDbPassword(cli.getDbPassword());
 
-		context.setParameter("skip.db", cli.isSkipDb());
-		context.setParameter("chown.user", cli.getChownUser());
-		context.setParameter("custom.vars", cli.getCustomVariables());
+		context.setSkipDb(cli.isSkipDb());
+		context.setChownUser(cli.getChownUser());
+		context.setCustomVariables(cli.getCustomVariables());
 
-		context.setParameter("force", cli.isForce());
-		context.setParameter("dry-run", cli.isDryRun());
-		context.setParameter("verbose", cli.isVerbose());
+		context.setForce(cli.isForce());
+		context.setDryRun(cli.isDryRun());
+		context.setVerbose(cli.isVerbose());
 	}
 
 	@Contract("_ -> new")

@@ -41,8 +41,8 @@ public class DatabaseInitializer {
 		} catch (SQLException e) {
 			throw new IllegalStateException(
 					"Не удалось подключиться к БД: " + url +
-							", пользователь: " + user +
-							", ошибка: " + e.getMessage(),
+					", пользователь: " + user +
+					", ошибка: " + e.getMessage(),
 					e
 			);
 		}
@@ -68,7 +68,7 @@ public class DatabaseInitializer {
 
 				if (count > 0) {
 					logger.warn("База данных уже содержит таблицы. " +
-							"Если это первичная установка, убедитесь, что это ожидаемое состояние.");
+								"Если это первичная установка, убедитесь, что это ожидаемое состояние.");
 				}
 			}
 

@@ -6,7 +6,10 @@ import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Контекст выполнения инсталлятора
@@ -15,18 +18,70 @@ import java.util.*;
 @Setter
 public class InstallerContext {
 
-	private final Scenario scenario;
-	private final Path standDir;
-	private final Path artifactsDir;
-	private final Path backupDir;
 	private final InstallerLogger logger;
 	private final LocalDateTime startTime;
 
-	private final Map<String, Object> parameters;
 	private final Map<String, String> report;
 	private final List<String> changes;
-
 	private UserPrompt userPrompt;
+
+	// "--mode"
+	private final Scenario scenario;
+	// "--stand-dir"
+	private Path standDir;
+	// "--artifacts-dir"
+	private Path artifactsDir;
+	// "--backup-dir"
+	private Path backupDir;
+	// "--ufos-version"
+	private String ufosVersion;
+	// "--core-war"
+	private Path coreWar;
+	// "--libs-zip"
+	private Path libsZip;
+	// "--app-zip"
+	private Path appZip;
+	// "--app-version"
+	private String appVersion;
+	// "--jetty-template"
+	private Path jettyTemplate;
+	// "--init-sql"
+	private Path initSql;
+	// "--db-host"
+	private String dbHost;
+	// "--db-port"
+	private String dbPort;
+	// "--db-name"
+	private String dbName;
+	// "--db-user"
+	private String dbUser;
+	// "--db-password"
+	private String dbPassword;
+	// "--skip-db"
+	private boolean skipDb;
+	// "--chown-user"
+	private String chownUser;
+	// "--var"
+	private Map<String, String> customVariables;
+	// "--force"
+	private boolean force;
+	// "--dry-run"
+	private boolean dryRun;
+	// "--verbose"
+	private boolean verbose;
+	// "--gui"
+	private boolean gui;
+	// "--cli"
+	private boolean cli;
+
+	public InstallerContext(InstallerLogger logger, Scenario scenario) {
+		this.logger = logger;
+		this.startTime = LocalDateTime.now();
+		this.report = new LinkedHashMap<>();
+		this.changes = new ArrayList<>();
+
+		this.scenario = scenario;
+	}
 
 	public InstallerContext(Scenario scenario,
 							Path standDir,
@@ -40,56 +95,8 @@ public class InstallerContext {
 		this.logger = logger;
 		this.startTime = LocalDateTime.now();
 
-		this.parameters = new LinkedHashMap<>();
 		this.report = new LinkedHashMap<>();
 		this.changes = new ArrayList<>();
-
-		// По умолчанию консольный prompt.
-		// GUI потом может подменить свой реализацией.
-		this.userPrompt = question -> {
-			System.out.print(question + " [y/N]: ");
-			Scanner scanner = new Scanner(System.in);
-			if (scanner.hasNextLine()) {
-				String answer = scanner.nextLine().trim().toLowerCase();
-				return answer.equals("y") || answer.equals("yes") || answer.equals("да");
-			}
-			return false;
-		};
-	}
-
-	public void setParameter(String key, Object value) {
-		parameters.put(key, value);
-	}
-
-	public Object getParameter(String key) {
-		return parameters.get(key);
-	}
-
-	public String getStringParameter(String key) {
-		Object value = parameters.get(key);
-		return value == null ? null : value.toString();
-	}
-
-	public Path getPathParameter(String key) {
-		Object value = parameters.get(key);
-		if (value == null) {
-			return null;
-		}
-		if (value instanceof Path path) {
-			return path;
-		}
-		return Path.of(value.toString());
-	}
-
-	public boolean getBooleanParameter(String key, boolean defaultValue) {
-		Object value = parameters.get(key);
-		if (value == null) {
-			return defaultValue;
-		}
-		if (value instanceof Boolean b) {
-			return b;
-		}
-		return Boolean.parseBoolean(value.toString());
 	}
 
 	public void addReport(String key, String value) {

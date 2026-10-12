@@ -1,6 +1,7 @@
 package ru.otr.ufos.installer.scenarios;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import ru.otr.ufos.installer.artifacts.ArtifactResolver;
 import ru.otr.ufos.installer.artifacts.ChecksumValidator;
 import ru.otr.ufos.installer.backup.BackupManager;
@@ -22,8 +23,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static ru.otr.ufos.installer.scenarios.ScenariosUtils.findVersionFile;
 
 /**
  * Сценарий 2: обновление ядра и приклада без пересоздания Jetty
@@ -67,9 +66,9 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 
 		ArtifactResolver resolver = new ArtifactResolver(logger, context.getArtifactsDir());
 
-		Path newCoreWar = resolver.resolveCoreWar(context.getPathParameter("artifact.core.war"));
-		Path libsZip = resolver.resolveLibsZip(context.getPathParameter("artifact.libs.zip"));
-		Path appZip = resolver.resolveAppZip(context.getPathParameter("artifact.app.zip"));
+		Path newCoreWar = resolver.resolveCoreWar(context.getCoreWar());
+		Path libsZip = resolver.resolveLibsZip(context.getLibsZip());
+		@Nullable Path appZip = resolver.resolveAppZip(context.getAppZip());
 
 		ChecksumValidator checksumValidator = new ChecksumValidator(logger);
 		Path checksumsFile = context.getArtifactsDir().resolve("checksums.sha256");
@@ -87,7 +86,7 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 			oldVersion = resolver.extractCoreVersion(oldWar, null);
 		}
 
-		String newVersion = resolver.extractCoreVersion(newCoreWar, context.getStringParameter("ufos.version"));
+		String newVersion = resolver.extractCoreVersion(newCoreWar, context.getUfosVersion());
 
 		logger.info("Текущая версия: " + oldVersion);
 		logger.info("Новая версия:   " + newVersion);
@@ -138,12 +137,12 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 
 			// Обновление приклада
 			logger.step("Обновление приклада");
-			deployApp(context, appZip, standDir, archiveHelper, fileManager);
+			ScenariosUtils.deployApp(context, appZip, standDir, archiveHelper, fileManager);
 
 			if (!permissionsManager.isWindows()) {
 				// Восстановление прав
 				logger.step("Восстановление прав доступа");
-				String chownUser = context.getStringParameter("chown.user");
+				String chownUser = context.getChownUser();
 
 				permissionsManager.restore(libExtSnapshot, libExtDir, chownUser);
 				permissionsManager.restore(sufdConfigSnapshot, sufdConfigDir, chownUser);
@@ -223,63 +222,6 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 			for (Path p : paths) {
 				Files.deleteIfExists(p);
 			}
-		}
-	}
-
-	private void deployApp(@NotNull InstallerContext context,
-						   Path appZip,
-						   @NotNull Path standDir,
-						   @NotNull ArchiveHelper archiveHelper,
-						   FileManager fileManager) throws IOException {
-
-		InstallerLogger logger = context.getLogger();
-		if (null == appZip) {
-			logger.info("Артефакт приклада не задан. Установка приклада пропущена");
-			return;
-		}
-
-		Path tempDir = archiveHelper.extractToTemp(appZip);
-
-		try {
-			Path appRoot = archiveHelper.detectEffectiveRoot(tempDir);
-
-			Path srcConfig = appRoot.resolve("sufd.config");
-			Path srcMigrations = appRoot.resolve("sql-migrations");
-
-			Path targetConfig = standDir.resolve("sufd.config");
-			Path targetMigrations = standDir.resolve("sql-migrations");
-
-			if (Files.exists(srcConfig)) {
-				fileManager.clearDirectory(targetConfig);
-				archiveHelper.copyContents(srcConfig, targetConfig);
-				logger.info("Обновлено: sufd.config/");
-				context.addChange("Обновлено: sufd.config/");
-			} else {
-				logger.warn("В архиве приклада не найдена папка sufd.config");
-			}
-
-			if (Files.exists(srcMigrations)) {
-				fileManager.clearDirectory(targetMigrations);
-				archiveHelper.copyContents(srcMigrations, targetMigrations);
-				logger.info("Обновлено: sql-migrations/");
-				context.addChange("Обновлено: sql-migrations/");
-			} else {
-				logger.warn("В архиве приклада не найдена папка sql-migrations");
-			}
-
-			Path versionFile = findVersionFile(appRoot);
-			Path targetVersion = standDir.resolve("version.txt");
-
-			if (versionFile != null) {
-				fileManager.copyFile(versionFile, targetVersion);
-				logger.info("Обновлено: version.txt");
-				context.addChange("Обновлено: version.txt");
-			} else {
-				logger.warn("version.txt не найден в архиве приклада");
-			}
-
-		} finally {
-			fileManager.deleteRecursively(tempDir);
 		}
 	}
 

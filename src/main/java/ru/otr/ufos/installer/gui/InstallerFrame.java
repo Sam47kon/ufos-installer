@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.core.Scenario;
+import ru.otr.ufos.installer.core.UserPrompt;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 import ru.otr.ufos.installer.scenarios.InitScenario;
 import ru.otr.ufos.installer.scenarios.ScenarioExecutor;
@@ -324,9 +325,7 @@ public class InstallerFrame extends JFrame {
 	}
 
 	private void startInstallation() {
-		String standText = standDirField.getText().trim();
-
-		if (standText.isEmpty()) {
+		if (standDirField.getText().trim().isEmpty()) {
 			JOptionPane.showMessageDialog(
 					this,
 					"Укажите папку стенда",
@@ -336,25 +335,12 @@ public class InstallerFrame extends JFrame {
 			return;
 		}
 
-		String artifactsText = artifactsDirField.getText().trim();
-
-		if (artifactsText.isEmpty()) {
-			artifactsText = "./artifacts";
-		}
-
-		final Path standDir = Paths.get(standText).toAbsolutePath().normalize();
-		final Path artifactsDir = Paths.get(artifactsText).toAbsolutePath().normalize();
-
 		runButton.setEnabled(false);
 		logArea.setText("");
 		progressBar.setIndeterminate(true);
 		progressBar.setString("Выполняется...");
 
-		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-		Path logFile = Path.of("installer-" + timestamp + ".log").toAbsolutePath();
-
-		InstallerLogger logger = new InstallerLogger(logFile, verboseCheckBox.isSelected());
-
+		InstallerLogger logger = new InstallerLogger(Path.of("installer-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".log").toAbsolutePath(), verboseCheckBox.isSelected());
 		logger.addListener((level, message) -> SwingUtilities.invokeLater(() -> {
 			logArea.append(message + System.lineSeparator());
 			logArea.setCaretPosition(logArea.getDocument().getLength());
@@ -362,72 +348,17 @@ public class InstallerFrame extends JFrame {
 
 		new Thread(() -> {
 			try {
-				Scenario scenario = getSelectedScenario();
-
-				Path backupDir = standDir.getParent() == null
-						? Path.of("backups").resolve(standDir.getFileName())
-						: standDir.getParent().resolve("backups").resolve(standDir.getFileName());
-
-				InstallerContext context = new InstallerContext(
-						scenario,
-						standDir,
-						artifactsDir,
-						backupDir,
-						logger
-				);
-
-				context.setUserPrompt(question -> {
-					final boolean[] answer = new boolean[1];
-
-					try {
-						SwingUtilities.invokeAndWait(() -> {
-							int result = JOptionPane.showConfirmDialog(
-									InstallerFrame.this,
-									question,
-									"Подтверждение",
-									JOptionPane.YES_NO_OPTION,
-									JOptionPane.QUESTION_MESSAGE
-							);
-
-							answer[0] = result == JOptionPane.YES_OPTION;
-						});
-					} catch (Exception e) {
-						answer[0] = false;
-					}
-
-					return answer[0];
-				});
-
-				setPathParameter(context, "artifact.core.war", coreWarField.getText());
-				setPathParameter(context, "artifact.libs.zip", libsZipField.getText());
-				setPathParameter(context, "artifact.app.zip", appZipField.getText());
-				setPathParameter(context, "artifact.jetty.template", jettyTemplateField.getText());
-				setPathParameter(context, "artifact.init.sql", initSqlField.getText());
-
-				context.setParameter("ufos.version", emptyToNull(ufosVersionField.getText()));
-				context.setParameter("chown.user", emptyToNull(chownUserField.getText()));
-
-				context.setParameter("skip.db", skipDbCheckBox.isSelected());
-				context.setParameter("force", forceCheckBox.isSelected());
-				context.setParameter("verbose", verboseCheckBox.isSelected());
-
-				if (scenario == Scenario.INIT) {
-					context.setParameter("db.host", dbHostField.getText().trim());
-					context.setParameter("db.port", dbPortField.getText().trim());
-					context.setParameter("db.name", dbNameField.getText().trim());
-					context.setParameter("db.user", dbUserField.getText().trim());
-					context.setParameter("db.password", new String(dbPassField.getPassword()));
-				}
+				InstallerContext context = createContext(logger);
 
 				logger.info("==================================================");
 				logger.info("Запуск инсталлятора из GUI");
-				logger.info("Режим: " + scenario.getDescription());
-				logger.info("Стенд: " + standDir);
-				logger.info("Артефакты: " + artifactsDir);
-				logger.info("Бэкапы: " + backupDir);
+				logger.info("Режим: " + context.getScenario().getDescription());
+				logger.info("Стенд: " + context.getStandDir());
+				logger.info("Артефакты: " + context.getArtifactsDir());
+				logger.info("Бэкапы: " + context.getBackupDir());
 				logger.info("==================================================");
 
-				ScenarioExecutor executor = createExecutor(scenario);
+				ScenarioExecutor executor = createExecutor(context.getScenario());
 				executor.execute(context);
 
 				SwingUtilities.invokeLater(() -> {
@@ -466,6 +397,39 @@ public class InstallerFrame extends JFrame {
 		}).start();
 	}
 
+	private @NotNull InstallerContext createContext(InstallerLogger logger) {
+		InstallerContext context = new InstallerContext(logger, getSelectedScenario());
+		context.setUserPrompt(createUserPrompt(InstallerFrame.this));
+
+		context.setStandDir(Paths.get(standDirField.getText().trim()).toAbsolutePath().normalize());
+		context.setArtifactsDir(Paths.get(artifactsDirField.getText().trim().isBlank() ? "./artifacts" : artifactsDirField.getText().trim()).toAbsolutePath().normalize());
+		context.setBackupDir(context.getStandDir().getParent() == null
+				? Path.of("backups").resolve(context.getStandDir().getFileName())
+				: context.getStandDir().getParent().resolve("backups").resolve(context.getStandDir().getFileName()));
+
+		context.setCoreWar(getPath(coreWarField.getText()));
+		context.setLibsZip(getPath(libsZipField.getText()));
+		context.setAppZip(getPath(appZipField.getText()));
+		context.setJettyTemplate(getPath(jettyTemplateField.getText()));
+		context.setInitSql(getPath(initSqlField.getText()));
+
+		context.setUfosVersion(emptyToNull(ufosVersionField.getText()));
+		context.setChownUser(emptyToNull(chownUserField.getText()));
+
+		context.setSkipDb(skipDbCheckBox.isSelected());
+		context.setForce(forceCheckBox.isSelected());
+		context.setVerbose(verboseCheckBox.isSelected());
+
+		if (context.getScenario() == Scenario.INIT) {
+			context.setDbHost(dbHostField.getText().trim());
+			context.setDbPort(dbPortField.getText().trim());
+			context.setDbName(dbNameField.getText().trim());
+			context.setDbUser(dbUserField.getText().trim());
+			context.setDbPassword(new String(dbPassField.getPassword()));
+		}
+		return context;
+	}
+
 	private Scenario getSelectedScenario() {
 		int index = modeCombo.getSelectedIndex();
 
@@ -473,6 +437,22 @@ public class InstallerFrame extends JFrame {
 			case 1 -> Scenario.UPDATE_CORE;
 			case 2 -> Scenario.UPDATE_JETTY;
 			default -> Scenario.INIT;
+		};
+	}
+
+	private static @NotNull UserPrompt createUserPrompt(InstallerFrame frame) {
+		return question -> {
+			final boolean[] answer = new boolean[1];
+			try {
+				SwingUtilities.invokeAndWait(() -> {
+					int result = JOptionPane.showConfirmDialog(frame, question, "Подтверждение", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+					answer[0] = result == JOptionPane.YES_OPTION;
+				});
+			} catch (Exception e) {
+				answer[0] = false;
+			}
+
+			return answer[0];
 		};
 	}
 
@@ -485,25 +465,21 @@ public class InstallerFrame extends JFrame {
 		};
 	}
 
-	private void setPathParameter(InstallerContext context, String key, String text) {
+	private Path getPath(String text) {
 		if (text == null || text.isBlank()) {
-			return;
+			return null;
 		}
-
-		context.setParameter(key, Paths.get(text.trim()).toAbsolutePath().normalize());
+		return Paths.get(text.trim()).toAbsolutePath().normalize();
 	}
 
 	private String emptyToNull(String value) {
 		if (value == null) {
 			return null;
 		}
-
 		value = value.trim();
-
 		if (value.isEmpty()) {
 			return null;
 		}
-
 		return value;
 	}
 }
