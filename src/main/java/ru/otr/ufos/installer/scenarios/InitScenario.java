@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static ru.otr.ufos.installer.artifacts.ArtifactResolver.STAND_EXISTS;
 import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
 
 /**
@@ -83,7 +84,7 @@ public class InitScenario implements ScenarioExecutor {
 				try (Stream<Path> stream = FileManager.listFiles(standDir)) {
 					boolean notEmpty = stream.findAny().isPresent();
 					if (notEmpty && !force) {
-						throw new IllegalStateException("Каталог стенда уже существует и не пуст: " + standDir + ". Используйте --force для перезаписи.");
+						throw new IllegalStateException(STAND_EXISTS.formatted(standDir));
 					}
 					if (notEmpty) {
 						LOGGER.warn("Каталог стенда не пуст. Будет удалён из-за --force");

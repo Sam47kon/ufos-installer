@@ -36,7 +36,7 @@ public class DatabaseInitializer {
 				LOGGER.info("БД доступна: " + url);
 			}
 		} catch (SQLException e) {
-			throw new IllegalStateException(String.format("Не удалось подключиться к БД: %s, пользователь: %s, ошибка: %s", url, user, e.getMessage()), e);
+			throw new DataBaseException(String.format("Не удалось подключиться к БД: %s, пользователь: %s, ошибка: %s", url, user, e.getMessage()), e);
 		}
 	}
 
@@ -66,7 +66,7 @@ public class DatabaseInitializer {
 		}
 	}
 
-	public static void executeSqlFile(@NotNull Path sqlFile, String dbUrl, String host, String port, String dbName, String user, String password) throws IOException, SQLException {
+	public static void executeSqlFile(@NotNull Path sqlFile, String dbUrl, String host, String port, String dbName, String user, String password) throws IOException {
 		LOGGER.step("Выполнение init SQL: " + sqlFile.getFileName());
 		String script = Files.readString(sqlFile);
 		List<String> statements = SqlScriptSplitter.split(script);
@@ -93,6 +93,8 @@ public class DatabaseInitializer {
 					LOGGER.info("Выполнено операторов: " + (i + 1) + " из " + total);
 				}
 			}
+		} catch (Exception e) {
+			throw new DataBaseException(e);
 		}
 		LOGGER.info("Init SQL выполнен успешно");
 	}
@@ -108,7 +110,7 @@ public class DatabaseInitializer {
 	private static void requireNonBlank(String @NotNull ... args) {
 		for (String arg : args) {
 			if (StringUtils.isBlank(arg)) {
-				throw new IllegalStateException("Не заданы параметры подключения к БД");
+				throw new DataBaseException("Не заданы параметры подключения к БД");
 			}
 		}
 	}

@@ -19,6 +19,10 @@ import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
  * Поиск и проверка артефактов в каталоге artifacts
  */
 public class ArtifactResolver {
+	public static final String STAND_EXISTS = "Каталог стенда уже существует и не пуст: [%s]. Используйте --force для перезаписи.";
+	public static final String WAR_NOT_FOUND = "Не найден WAR-файл ядра в каталоге артефактов: [%s]. Ожидался файл вида sufd-server-<version>.war";
+	public static final String LIB_NOT_FOUND = "Не найден архив библиотек в каталоге артефактов: [%s]. Ожидался файл вида sufd-server-libs-<version>.zip";
+	public static final String JETTY_TEMPLATE_NOT_FOUND = "Не найден шаблон Jetty в каталоге артефактов: [%s]. Ожидался архив вида jetty-template-<version>.zip или каталог template/";
 
 	private static final Pattern CORE_WAR_VERSION_PATTERN = Pattern.compile("^sufd-server-(.+)\\.war$", Pattern.CASE_INSENSITIVE);
 
@@ -37,7 +41,7 @@ public class ArtifactResolver {
 
 		List<Path> candidates = findFiles(name -> name.toLowerCase().startsWith("sufd-server") && name.toLowerCase().endsWith(".war"));
 		if (candidates.isEmpty()) {
-			throw new IllegalStateException("Не найден WAR-файл ядра в каталоге артефактов: " + artifactsDir + ". Ожидался файл вида sufd-server-<version>.war");
+			throw new IllegalStateException(WAR_NOT_FOUND.formatted(artifactsDir));
 		}
 
 		if (candidates.size() > 1) {
@@ -58,7 +62,7 @@ public class ArtifactResolver {
 
 		List<Path> candidates = findFiles(name -> name.toLowerCase().startsWith("sufd-server-libs") && name.toLowerCase().endsWith(".zip"));
 		if (candidates.isEmpty()) {
-			throw new IllegalStateException("Не найден архив библиотек в каталоге артефактов: " + artifactsDir + ". Ожидался файл вида sufd-server-libs-<version>.zip");
+			throw new IllegalStateException(LIB_NOT_FOUND.formatted(artifactsDir));
 		}
 
 		if (candidates.size() > 1) {
@@ -108,7 +112,7 @@ public class ArtifactResolver {
 				LOGGER.info("Найден каталог шаблона: " + templateDir);
 				return templateDir;
 			}
-			throw new IllegalStateException("Не найден шаблон Jetty в каталоге артефактов: " + artifactsDir + ". Ожидался архив вида jetty-template-<version>.zip или каталог template/");
+			throw new IllegalStateException(JETTY_TEMPLATE_NOT_FOUND.formatted(artifactsDir));
 		}
 
 		if (candidates.size() > 1) {
