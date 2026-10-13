@@ -115,17 +115,17 @@ public class ConfigProcessor {
 
 		Matcher curlyMatcher = UNRESOLVED_CURLY_PATTERN.matcher(content);
 		while (curlyMatcher.find()) {
-			String var = curlyMatcher.group();
-			if (!result.contains(var)) {
-				result.add(var);
+			String match = curlyMatcher.group();
+			if (!result.contains(match)) {
+				result.add(match);
 			}
 		}
 
 		Matcher bracketMatcher = UNRESOLVED_BRACKET_PATTERN.matcher(content);
 		while (bracketMatcher.find()) {
-			String var = bracketMatcher.group();
-			if (!result.contains(var)) {
-				result.add(var);
+			String match = bracketMatcher.group();
+			if (!result.contains(match)) {
+				result.add(match);
 			}
 		}
 		return result;

@@ -4,6 +4,7 @@ import lombok.experimental.UtilityClass;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,10 +26,9 @@ import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
 @UtilityClass
 public class DatabaseInitializer {
 
-	public static void checkConnection(String host, String port, String dbName, String user, String password) {
+	public static void checkConnection(@Nullable String dbUrl, String host, String port, String dbName, String user, String password) {
 		LOGGER.step("Проверка доступности БД");
-		requireNonBlank(host, port, dbName, user);
-		String url = buildJdbcUrl(host, port, dbName);
+		String url = resolveJdbcUrl(dbUrl, host, port, dbName);
 		try (Connection connection = getConnection(url, user, password);
 			 Statement statement = connection.createStatement();
 			 ResultSet rs = statement.executeQuery("SELECT 1")) {
@@ -40,8 +40,9 @@ public class DatabaseInitializer {
 		}
 	}
 
-	public static void logTableCount(String host, String port, String dbName, String user, String password) {
-		String url = buildJdbcUrl(host, port, dbName);
+	public static void logTableCount(@Nullable String dbUrl,
+									 String host, String port, String dbName, String user, String password) {
+		String url = resolveJdbcUrl(dbUrl, host, port, dbName);
 		String sql = """
 				SELECT COUNT(*)
 				FROM information_schema.tables
@@ -65,12 +66,7 @@ public class DatabaseInitializer {
 		}
 	}
 
-	public static void executeSqlFile(@NotNull Path sqlFile,
-									  String host,
-									  String port,
-									  String dbName,
-									  String user,
-									  String password) throws IOException, SQLException {
+	public static void executeSqlFile(@NotNull Path sqlFile, String dbUrl, String host, String port, String dbName, String user, String password) throws IOException, SQLException {
 		LOGGER.step("Выполнение init SQL: " + sqlFile.getFileName());
 		String script = Files.readString(sqlFile);
 		List<String> statements = SqlScriptSplitter.split(script);
@@ -78,7 +74,7 @@ public class DatabaseInitializer {
 			LOGGER.warn("SQL-файл пуст или не содержит операторов");
 			return;
 		}
-		String url = buildJdbcUrl(host, port, dbName);
+		String url = resolveJdbcUrl(dbUrl, host, port, dbName);
 		int total = statements.size();
 
 		LOGGER.info("Найдено SQL-операторов: " + total);
@@ -101,6 +97,14 @@ public class DatabaseInitializer {
 		LOGGER.info("Init SQL выполнен успешно");
 	}
 
+	public static @NotNull String resolveJdbcUrl(@Nullable String dbUrl, String host, String port, String dbName) {
+		if (StringUtils.isNotBlank(dbUrl)) {
+			return dbUrl;
+		}
+		requireNonBlank(host, port, dbName);
+		return buildJdbcPgUrl(host, port, dbName);
+	}
+
 	private static void requireNonBlank(String @NotNull ... args) {
 		for (String arg : args) {
 			if (StringUtils.isBlank(arg)) {
@@ -120,7 +124,7 @@ public class DatabaseInitializer {
 	}
 
 	@Contract(pure = true)
-	private static @NotNull String buildJdbcUrl(String host, String port, String dbName) {
+	private static @NotNull String buildJdbcPgUrl(String host, String port, String dbName) {
 		return "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
 	}
 }

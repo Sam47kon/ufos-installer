@@ -24,7 +24,7 @@ public class CliParser implements Runnable {
 
 	@Option(
 			names = {"--mode", "-m"},
-			description = "Режим работы: init, update-core, update-jetty",
+			description = "Режим работы: init, update-core",
 			required = true
 	)
 	private String mode;
@@ -85,6 +85,12 @@ public class CliParser implements Runnable {
 			description = "Путь к init SQL файлу для первичной инициализации БД"
 	)
 	private Path initSql;
+
+	@Option(
+			names = {"--db-url"},
+			description = "Полный JDBC URL. Если указан, имеет приоритет над --db-host/--db-port/--db-name"
+	)
+	private String dbUrl;
 
 	@Option(
 			names = {"--db-host"},

@@ -1,6 +1,5 @@
 package ru.otr.ufos.installer;
 
-import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import picocli.CommandLine;
 import ru.otr.ufos.installer.cli.CliParser;
@@ -9,13 +8,11 @@ import ru.otr.ufos.installer.core.Scenario;
 import ru.otr.ufos.installer.filesystem.FileManager;
 import ru.otr.ufos.installer.gui.InstallerFrame;
 import ru.otr.ufos.installer.logging.InstallerLogger;
-import ru.otr.ufos.installer.scenarios.InitScenario;
-import ru.otr.ufos.installer.scenarios.ScenarioExecutor;
-import ru.otr.ufos.installer.scenarios.UpdateCoreScenario;
-import ru.otr.ufos.installer.scenarios.UpdateJettyScenario;
+import ru.otr.ufos.installer.scenarios.ScenariosUtils;
 
 import javax.swing.*;
 import java.awt.*;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -23,7 +20,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Scanner;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
 
 /**
@@ -36,12 +32,10 @@ public class UfosInstaller {
 		boolean forceCli = hasFlag(args, "--cli");
 
 		boolean headless = GraphicsEnvironment.isHeadless();
-
 		if (forceGui && !headless) {
 			launchGui();
 			return;
 		}
-
 		if (!forceCli && args.length == 0 && !headless) {
 			launchGui();
 			return;
@@ -115,13 +109,13 @@ public class UfosInstaller {
 			LOGGER.info("Бэкапы: " + cli.getBackupDir());
 
 			if (cli.isDryRun()) {
-				showDryRun(context);
+				ScenariosUtils.showDryRun(context);
 				System.exit(0);
 				return;
 			}
 
-			ScenarioExecutor executor = createExecutor(scenario);
-			executor.execute(context);
+			// Выполнение
+			ScenariosUtils.execute(context.getScenario(), context);
 
 			LOGGER.info("==================================================");
 			LOGGER.info("Работа инсталлятора завершена успешно");
@@ -144,6 +138,7 @@ public class UfosInstaller {
 		context.setJettyTemplate(cli.getJettyTemplate());
 		context.setInitSql(cli.getInitSql());
 
+		context.setDbUrl(cli.getDbUrl());
 		context.setDbHost(cli.getDbHost());
 		context.setDbPort(cli.getDbPort());
 		context.setDbName(cli.getDbName());
@@ -157,72 +152,6 @@ public class UfosInstaller {
 		context.setForce(cli.isForce());
 		context.setDryRun(cli.isDryRun());
 		context.setVerbose(cli.isVerbose());
-	}
-
-	@Contract("_ -> new")
-	private static @NotNull ScenarioExecutor createExecutor(@NotNull Scenario scenario) {
-		return switch (scenario) {
-			case INIT -> new InitScenario();
-			case UPDATE_CORE -> new UpdateCoreScenario();
-			case UPDATE_JETTY -> new UpdateJettyScenario();
-		};
-	}
-
-	private static void showDryRun(@NotNull InstallerContext context) {
-		LOGGER.step("[DRY-RUN] План выполнения");
-		LOGGER.info(EMPTY);
-		LOGGER.info("Сценарий:   " + context.getScenario().getDescription());
-		LOGGER.info("Стенд:      " + context.getStandDir());
-		LOGGER.info("Артефакты:  " + context.getArtifactsDir());
-		LOGGER.info("Бэкапы:     " + context.getBackupDir());
-		LOGGER.info(EMPTY);
-
-		switch (context.getScenario()) {
-			case INIT:
-				LOGGER.info(" 1. Проверка окружения");
-				LOGGER.info(" 2. Поиск артефактов");
-				LOGGER.info(" 3. Проверка контрольных сумм");
-				LOGGER.info(" 4. Проверка доступности БД");
-				LOGGER.info(" 5. Создание структуры стенда из шаблона Jetty");
-				LOGGER.info(" 6. Подстановка переменных в etc/");
-				LOGGER.info(" 7. Размещение WAR-файла ядра");
-				LOGGER.info(" 8. Распаковка библиотек в lib/ext/");
-				LOGGER.info(" 9. Размещение приклада в sufd.config/ и sql-migrations/");
-				LOGGER.info("10. Выполнение init SQL");
-				LOGGER.info("11. Применение прав доступа");
-				LOGGER.info("12. Формирование отчёта");
-				break;
-
-			case UPDATE_CORE:
-				LOGGER.info(" 1. Проверка окружения");
-				LOGGER.info(" 2. Поиск артефактов");
-				LOGGER.info(" 3. Проверка контрольных сумм");
-				LOGGER.info(" 4. Создание бэкапа изменяемых частей");
-				LOGGER.info(" 5. Замена WAR-файла ядра");
-				LOGGER.info(" 6. Замена lib/ext/");
-				LOGGER.info(" 7. Замена sufd.config/");
-				LOGGER.info(" 8. Замена sql-migrations/");
-				LOGGER.info(" 9. Обновление version.txt");
-				LOGGER.info("10. Восстановление прав доступа");
-				LOGGER.info("11. Формирование отчёта");
-				break;
-
-			case UPDATE_JETTY:
-				LOGGER.info(" 1. Проверка окружения");
-				LOGGER.info(" 2. Поиск артефактов");
-				LOGGER.info(" 3. Проверка контрольных сумм");
-				LOGGER.info(" 4. Создание полного бэкапа стенда");
-				LOGGER.info(" 5. Замена Jetty-части");
-				LOGGER.info(" 6. Обновление УФОС-части");
-				LOGGER.info(" 7. Формирование отчёта");
-				break;
-
-			default:
-				LOGGER.warn("Неизвестный сценарий");
-		}
-
-		LOGGER.info(EMPTY);
-		LOGGER.info("[DRY-RUN] Для реального выполнения уберите флаг --dry-run");
 	}
 
 	private static Path createLogFile() {
@@ -241,7 +170,7 @@ public class UfosInstaller {
 
 	private static Path getLogDirectory() {
 		try {
-			var location = UfosInstaller.class.getProtectionDomain().getCodeSource().getLocation();
+			URL location = UfosInstaller.class.getProtectionDomain().getCodeSource().getLocation();
 			Path path = Path.of(location.toURI());
 
 			if (Files.isRegularFile(path)) {

@@ -1,15 +1,11 @@
 package ru.otr.ufos.installer.gui;
 
-import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.core.Scenario;
 import ru.otr.ufos.installer.core.UserPrompt;
 import ru.otr.ufos.installer.logging.InstallerLogger;
-import ru.otr.ufos.installer.scenarios.InitScenario;
-import ru.otr.ufos.installer.scenarios.ScenarioExecutor;
-import ru.otr.ufos.installer.scenarios.UpdateCoreScenario;
-import ru.otr.ufos.installer.scenarios.UpdateJettyScenario;
+import ru.otr.ufos.installer.scenarios.ScenariosUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -86,8 +82,7 @@ public class InstallerFrame extends JFrame {
 
 		modeCombo = new JComboBox<>(new String[]{
 				Scenario.INIT.toString(),
-				Scenario.UPDATE_CORE.toString(),
-				Scenario.UPDATE_JETTY.toString()
+				Scenario.UPDATE_CORE.toString()
 		});
 
 		gbc.gridx = 1;
@@ -365,8 +360,13 @@ public class InstallerFrame extends JFrame {
 				LOGGER.info("Бэкапы: " + context.getBackupDir());
 				LOGGER.info("==================================================");
 
-				ScenarioExecutor executor = createExecutor(context.getScenario());
-				executor.execute(context);
+				if (context.isDryRun()) {
+					ScenariosUtils.showDryRun(context);
+					return;
+				}
+
+				// Выполнение
+				ScenariosUtils.execute(context.getScenario(), context);
 
 				SwingUtilities.invokeLater(() -> {
 					progressBar.setIndeterminate(false);
@@ -438,12 +438,13 @@ public class InstallerFrame extends JFrame {
 
 	private Scenario getSelectedScenario() {
 		int index = modeCombo.getSelectedIndex();
-
-		return switch (index) {
-			case 1 -> Scenario.UPDATE_CORE;
-			case 2 -> Scenario.UPDATE_JETTY;
-			default -> Scenario.INIT;
-		};
+		if (0 == index) {
+			return Scenario.INIT;
+		}
+		if (1 == index) {
+			return Scenario.UPDATE_CORE;
+		}
+		return Scenario.INIT;
 	}
 
 	private static @NotNull UserPrompt createUserPrompt(InstallerFrame frame) {
@@ -459,15 +460,6 @@ public class InstallerFrame extends JFrame {
 			}
 
 			return answer[0];
-		};
-	}
-
-	@Contract("_ -> new")
-	private @NotNull ScenarioExecutor createExecutor(@NotNull Scenario scenario) {
-		return switch (scenario) {
-			case INIT -> new InitScenario();
-			case UPDATE_CORE -> new UpdateCoreScenario();
-			case UPDATE_JETTY -> new UpdateJettyScenario();
 		};
 	}
 

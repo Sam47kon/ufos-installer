@@ -9,8 +9,7 @@ import org.jetbrains.annotations.NotNull;
 @Getter
 public enum Scenario {
 	INIT("Первичная установка", "init"),
-	UPDATE_CORE("Обновление ядра и приклада", "update-core"),
-	UPDATE_JETTY("Обновление Jetty", "update-jetty");
+	UPDATE_CORE("Обновление ядра и приклада", "update-core");
 
 	private final String description;
 	private final String command;

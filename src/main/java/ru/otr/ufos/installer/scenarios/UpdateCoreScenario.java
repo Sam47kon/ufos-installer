@@ -44,6 +44,9 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		if (!Files.exists(standDir)) {
 			throw new IllegalStateException("Стенд не найден: " + standDir);
 		}
+		if (!Files.isDirectory(standDir)) {
+			throw new IllegalStateException("Стенд не является папкой: " + standDir);
+		}
 
 		Path webappsDir = standDir.resolve("webapps");
 		Path libExtDir = standDir.resolve("lib/ext");
@@ -178,8 +181,8 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		if (null != appZip) {
 			backupPaths.add("sufd.config");
 			backupPaths.add("sql-migrations");
-		}
-		if (Files.exists(versionFile)) {
+			backupPaths.add("version.txt");
+		} else if (Files.exists(versionFile)) {
 			backupPaths.add("version.txt");
 		}
 		return BackupManager.createPartialBackup(standDir, "update-core", backupPaths, backupDir);

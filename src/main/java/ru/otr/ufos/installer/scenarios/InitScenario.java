@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
@@ -53,6 +54,7 @@ public class InitScenario implements ScenarioExecutor {
 		}
 
 		// Параметры БД
+		String dbUrl = context.getDbUrl();
 		String dbHost = context.getDbHost();
 		String dbPort = context.getDbPort();
 		String dbName = context.getDbName();
@@ -61,8 +63,8 @@ public class InitScenario implements ScenarioExecutor {
 
 		boolean skipDb = context.isSkipDb();
 		if (!skipDb) {
-			DatabaseInitializer.checkConnection(dbHost, dbPort, dbName, dbUser, dbPassword);
-			DatabaseInitializer.logTableCount(dbHost, dbPort, dbName, dbUser, dbPassword);
+			DatabaseInitializer.checkConnection(dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
+			DatabaseInitializer.logTableCount(dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
 		} else {
 			LOGGER.warn("Проверка БД пропущена (--skip-db)");
 		}
@@ -71,14 +73,22 @@ public class InitScenario implements ScenarioExecutor {
 		Path standDir = context.getStandDir();
 		boolean force = context.isForce();
 		if (Files.exists(standDir)) {
-			try (var stream = FileManager.listFiles(standDir)) {
-				boolean notEmpty = stream.findAny().isPresent();
-				if (notEmpty && !force) {
-					throw new IllegalStateException("Каталог стенда уже существует и не пуст: " + standDir + ". Используйте --force для перезаписи.");
+			if (!Files.isDirectory(standDir)) {
+				if (!force) {
+					throw new IllegalStateException("Путь к стенду существует, но не является каталогом: " + standDir);
 				}
-				if (notEmpty) {
-					LOGGER.warn("Каталог стенда не пуст. Будет удалён из-за --force");
-					FileManager.deleteRecursively(standDir, LOGGER);
+				LOGGER.warn("Обнаружен файл [%s]. Будет удалён из-за --force", standDir);
+				Files.delete(standDir);
+			} else {
+				try (Stream<Path> stream = FileManager.listFiles(standDir)) {
+					boolean notEmpty = stream.findAny().isPresent();
+					if (notEmpty && !force) {
+						throw new IllegalStateException("Каталог стенда уже существует и не пуст: " + standDir + ". Используйте --force для перезаписи.");
+					}
+					if (notEmpty) {
+						LOGGER.warn("Каталог стенда не пуст. Будет удалён из-за --force");
+						FileManager.deleteRecursively(standDir, LOGGER);
+					}
 				}
 			}
 		}
@@ -123,14 +133,7 @@ public class InitScenario implements ScenarioExecutor {
 		// Init SQL
 		if (!skipDb) {
 			if (initSql != null) {
-				DatabaseInitializer.executeSqlFile(
-						initSql,
-						dbHost,
-						dbPort,
-						dbName,
-						dbUser,
-						dbPassword
-				);
+				DatabaseInitializer.executeSqlFile(initSql, dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
 				context.addChange("Выполнен init SQL: " + initSql.getFileName());
 			} else {
 				LOGGER.warn("Init SQL не найден. Инициализация БД пропущена.");
@@ -161,11 +164,13 @@ public class InitScenario implements ScenarioExecutor {
 	private @NotNull Map<String, String> buildVariables(@NotNull InstallerContext context, String coreVersion) {
 		Map<String, String> variables = new HashMap<>();
 
+		putIfNotNull(variables, "DB_URL", DatabaseInitializer.resolveJdbcUrl(context.getDbUrl(), context.getDbHost(), context.getDbPort(), context.getDbName()));
 		putIfNotNull(variables, "DB_HOST", context.getDbHost());
 		putIfNotNull(variables, "DB_PORT", context.getDbPort());
 		putIfNotNull(variables, "DB_NAME", context.getDbName());
 		putIfNotNull(variables, "DB_USER", context.getDbUser());
 		putIfNotNull(variables, "DB_PASSWORD", context.getDbPassword());
+
 		putIfNotNull(variables, "VERSION", coreVersion);
 		putIfNotNull(variables, "STAND_DIR", context.getStandDir().toAbsolutePath().toString());
 

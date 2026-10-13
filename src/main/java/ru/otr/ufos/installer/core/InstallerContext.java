@@ -44,6 +44,8 @@ public class InstallerContext {
 	private Path jettyTemplate;
 	// "--init-sql"
 	private Path initSql;
+	// "--db-url"
+	private String dbUrl;
 	// "--db-host"
 	private String dbHost;
 	// "--db-port"
@@ -66,10 +68,6 @@ public class InstallerContext {
 	private boolean dryRun;
 	// "--verbose"
 	private boolean verbose;
-	// "--gui"
-	private boolean gui;
-	// "--cli"
-	private boolean cli;
 	// endregion Поля
 
 	public InstallerContext(Scenario scenario, UserPrompt userPrompt) {

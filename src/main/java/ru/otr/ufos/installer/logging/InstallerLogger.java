@@ -49,6 +49,7 @@ public class InstallerLogger {
 	public static void init(Path logFile, boolean verbose) {
 		LOGGER.logFile = logFile;
 		LOGGER.verbose = verbose;
+		LOGGER.listeners.clear();
 		if (null == logFile) {
 			return;
 		}
