@@ -19,12 +19,17 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static ru.otr.ufos.installer.logging.InstallerLogger.LINE_SEPARATOR;
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
+
 /**
  * GUI инсталлятора УФОС
  */
 @SuppressWarnings("DuplicatedCode")
 public class InstallerFrame extends JFrame {
 
+	// region Поля
 	private final JComboBox<String> modeCombo;
 
 	private final JTextField standDirField;
@@ -53,6 +58,7 @@ public class InstallerFrame extends JFrame {
 	private final JTextArea logArea;
 	private final JButton runButton;
 	private final JProgressBar progressBar;
+	// endregion Поля
 
 	public InstallerFrame() {
 		setTitle("UFOS Stand Installer");
@@ -79,9 +85,9 @@ public class InstallerFrame extends JFrame {
 		topPanel.add(new JLabel("Режим:"), gbc);
 
 		modeCombo = new JComboBox<>(new String[]{
-				"Первичная установка (init)",
-				"Обновление ядра и приклада (update-core)",
-				"Обновление с пересозданием Jetty (update-jetty)"
+				Scenario.INIT.toString(),
+				Scenario.UPDATE_CORE.toString(),
+				Scenario.UPDATE_JETTY.toString()
 		});
 
 		gbc.gridx = 1;
@@ -336,27 +342,28 @@ public class InstallerFrame extends JFrame {
 		}
 
 		runButton.setEnabled(false);
-		logArea.setText("");
+		logArea.setText(EMPTY);
 		progressBar.setIndeterminate(true);
 		progressBar.setString("Выполняется...");
 
-		InstallerLogger logger = new InstallerLogger(Path.of("installer-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".log").toAbsolutePath(), verboseCheckBox.isSelected());
-		logger.addListener((level, message) -> SwingUtilities.invokeLater(() -> {
-			logArea.append(message + System.lineSeparator());
+		// Инициализация общего логгера
+		InstallerLogger.init(Path.of("installer-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".log").toAbsolutePath(), verboseCheckBox.isSelected());
+		LOGGER.addListener((level, message) -> SwingUtilities.invokeLater(() -> {
+			logArea.append(message + LINE_SEPARATOR);
 			logArea.setCaretPosition(logArea.getDocument().getLength());
 		}));
 
 		new Thread(() -> {
 			try {
-				InstallerContext context = createContext(logger);
+				InstallerContext context = createContext();
 
-				logger.info("==================================================");
-				logger.info("Запуск инсталлятора из GUI");
-				logger.info("Режим: " + context.getScenario().getDescription());
-				logger.info("Стенд: " + context.getStandDir());
-				logger.info("Артефакты: " + context.getArtifactsDir());
-				logger.info("Бэкапы: " + context.getBackupDir());
-				logger.info("==================================================");
+				LOGGER.info("==================================================");
+				LOGGER.info("Запуск инсталлятора из GUI");
+				LOGGER.info("Режим: " + context.getScenario().getDescription());
+				LOGGER.info("Стенд: " + context.getStandDir());
+				LOGGER.info("Артефакты: " + context.getArtifactsDir());
+				LOGGER.info("Бэкапы: " + context.getBackupDir());
+				LOGGER.info("==================================================");
 
 				ScenarioExecutor executor = createExecutor(context.getScenario());
 				executor.execute(context);
@@ -377,7 +384,7 @@ public class InstallerFrame extends JFrame {
 				});
 
 			} catch (Exception ex) {
-				logger.error("Ошибка выполнения", ex);
+				LOGGER.error("Ошибка выполнения", ex);
 
 				SwingUtilities.invokeLater(() -> {
 					progressBar.setIndeterminate(false);
@@ -397,9 +404,8 @@ public class InstallerFrame extends JFrame {
 		}).start();
 	}
 
-	private @NotNull InstallerContext createContext(InstallerLogger logger) {
-		InstallerContext context = new InstallerContext(logger, getSelectedScenario());
-		context.setUserPrompt(createUserPrompt(InstallerFrame.this));
+	private @NotNull InstallerContext createContext() {
+		InstallerContext context = new InstallerContext(getSelectedScenario(), createUserPrompt(InstallerFrame.this));
 
 		context.setStandDir(Paths.get(standDirField.getText().trim()).toAbsolutePath().normalize());
 		context.setArtifactsDir(Paths.get(artifactsDirField.getText().trim().isBlank() ? "./artifacts" : artifactsDirField.getText().trim()).toAbsolutePath().normalize());

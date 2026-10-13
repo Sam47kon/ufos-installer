@@ -2,7 +2,6 @@ package ru.otr.ufos.installer.core;
 
 import lombok.Getter;
 import lombok.Setter;
-import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -18,12 +17,12 @@ import java.util.Map;
 @Setter
 public class InstallerContext {
 
-	private final InstallerLogger logger;
+	// region Поля
 	private final LocalDateTime startTime;
 
 	private final Map<String, String> report;
 	private final List<String> changes;
-	private UserPrompt userPrompt;
+	private final UserPrompt userPrompt;
 
 	// "--mode"
 	private final Scenario scenario;
@@ -41,8 +40,6 @@ public class InstallerContext {
 	private Path libsZip;
 	// "--app-zip"
 	private Path appZip;
-	// "--app-version"
-	private String appVersion;
 	// "--jetty-template"
 	private Path jettyTemplate;
 	// "--init-sql"
@@ -73,28 +70,25 @@ public class InstallerContext {
 	private boolean gui;
 	// "--cli"
 	private boolean cli;
+	// endregion Поля
 
-	public InstallerContext(InstallerLogger logger, Scenario scenario) {
-		this.logger = logger;
+	public InstallerContext(Scenario scenario, UserPrompt userPrompt) {
+		this.scenario = scenario;
+		this.userPrompt = userPrompt;
+
 		this.startTime = LocalDateTime.now();
 		this.report = new LinkedHashMap<>();
 		this.changes = new ArrayList<>();
-
-		this.scenario = scenario;
 	}
 
-	public InstallerContext(Scenario scenario,
-							Path standDir,
-							Path artifactsDir,
-							Path backupDir,
-							InstallerLogger logger) {
+	public InstallerContext(Scenario scenario, Path standDir, Path artifactsDir, Path backupDir, UserPrompt userPrompt) {
 		this.scenario = scenario;
 		this.standDir = standDir;
 		this.artifactsDir = artifactsDir;
 		this.backupDir = backupDir;
-		this.logger = logger;
-		this.startTime = LocalDateTime.now();
+		this.userPrompt = userPrompt;
 
+		this.startTime = LocalDateTime.now();
 		this.report = new LinkedHashMap<>();
 		this.changes = new ArrayList<>();
 	}

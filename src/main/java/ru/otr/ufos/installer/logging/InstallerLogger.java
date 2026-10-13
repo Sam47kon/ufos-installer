@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
+import ru.otr.ufos.installer.filesystem.FileManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,48 +13,58 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
+
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 /**
  * Логгер инсталлятора с поддержкой файла и GUI callback
  */
 public class InstallerLogger {
-	private static final Logger slf4jLogger = LoggerFactory.getLogger(InstallerLogger.class);
-	private static final DateTimeFormatter TIMESTAMP_FORMAT =
-			DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+	public static final String LINE_SEPARATOR = System.lineSeparator();
 
+	public static InstallerLogger LOGGER = new InstallerLogger();
+
+	private static final Logger slf4jLogger = LoggerFactory.getLogger(InstallerLogger.class);
+	private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+	private final List<LogListener> listeners = new CopyOnWriteArrayList<>();
 	@Getter
-	private final Path logFile;
-	private final List<LogListener> listeners;
-	private final boolean verbose;
+	private Path logFile;
+	private boolean verbose;
 
 	public interface LogListener {
 		void onLog(Level level, String message);
 	}
 
-	public InstallerLogger(Path logFile, boolean verbose) {
-		this.logFile = logFile;
-		this.listeners = new CopyOnWriteArrayList<>();
-		this.verbose = verbose;
+	private InstallerLogger() {
+	}
 
-		if (logFile != null) {
-			try {
-				Files.createDirectories(logFile.getParent());
-				Files.writeString(logFile, "", StandardOpenOption.CREATE,
-						StandardOpenOption.TRUNCATE_EXISTING);
-			} catch (IOException e) {
-				slf4jLogger.error("Не удалось создать лог-файл: {}", logFile, e);
+	/**
+	 * Инициализация общего логгера
+	 */
+	public static void init(Path logFile, boolean verbose) {
+		LOGGER.logFile = logFile;
+		LOGGER.verbose = verbose;
+		if (null == logFile) {
+			return;
+		}
+		try {
+			Path parent = logFile.getParent();
+			if (null != parent) {
+				FileManager.createDirectories(parent);
 			}
+			Files.writeString(logFile, EMPTY, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+		} catch (IOException e) {
+			slf4jLogger.error("Не удалось создать лог-файл: {}", logFile, e);
 		}
 	}
 
 	public void addListener(LogListener listener) {
 		listeners.add(listener);
-	}
-
-	public void removeListener(LogListener listener) {
-		listeners.remove(listener);
 	}
 
 	public void info(String message) {
@@ -104,8 +115,7 @@ public class InstallerLogger {
 		// Запись в файл
 		if (logFile != null) {
 			try {
-				Files.writeString(logFile, formattedMessage + "\n",
-						StandardOpenOption.APPEND, StandardOpenOption.CREATE);
+				Files.writeString(logFile, formattedMessage + LINE_SEPARATOR, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
 			} catch (IOException e) {
 				slf4jLogger.error("Ошибка записи в лог-файл", e);
 			}
@@ -113,17 +123,10 @@ public class InstallerLogger {
 
 		// Вывод в консоль
 		switch (level) {
-			case ERROR:
-				System.err.println("\u001B[31m" + formattedMessage + "\u001B[0m"); // Red
-				break;
-			case WARN:
-				System.out.println("\u001B[33m" + formattedMessage + "\u001B[0m"); // Yellow
-				break;
-			case DEBUG:
-				System.out.println("\u001B[36m" + formattedMessage + "\u001B[0m"); // Cyan
-				break;
-			default:
-				System.out.println("\u001B[32m" + formattedMessage + "\u001B[0m"); // Green
+			case ERROR -> System.err.println("\u001B[31m" + formattedMessage + "\u001B[0m"); // Red
+			case WARN -> System.out.println("\u001B[33m" + formattedMessage + "\u001B[0m"); // Yellow
+			case DEBUG -> System.out.println("\u001B[36m" + formattedMessage + "\u001B[0m"); // Cyan
+			default -> System.out.println("\u001B[32m" + formattedMessage + "\u001B[0m"); // Green
 		}
 
 		// Уведомление слушателей (для GUI)
@@ -137,11 +140,8 @@ public class InstallerLogger {
 	}
 
 	private @NotNull String throwableToString(@NotNull Throwable throwable) {
-		StringBuilder sb = new StringBuilder();
-		sb.append(throwable).append("\n");
-		for (StackTraceElement element : throwable.getStackTrace()) {
-			sb.append("\tat ").append(element).append("\n");
-		}
-		return sb.toString();
+		return Arrays.stream(throwable.getStackTrace())
+				.map(element -> "\tat " + element)
+				.collect(Collectors.joining(LINE_SEPARATOR, throwable + LINE_SEPARATOR, LINE_SEPARATOR));
 	}
 }

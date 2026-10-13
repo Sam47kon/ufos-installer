@@ -1,7 +1,8 @@
 package ru.otr.ufos.installer.config;
 
+import lombok.experimental.UtilityClass;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
-import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -13,12 +14,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
+
 /**
  * Обработка конфигурационных файлов:
  * - замена ${VAR};
  * - замена $[VAR];
  * - поиск незаменённых переменных.
  */
+@UtilityClass
 public class ConfigProcessor {
 
 	private static final Pattern UNRESOLVED_CURLY_PATTERN =
@@ -41,29 +46,21 @@ public class ConfigProcessor {
 
 	private static final long MAX_FILE_SIZE = 5L * 1024 * 1024;
 
-	private final InstallerLogger logger;
-
-	public ConfigProcessor(InstallerLogger logger) {
-		this.logger = logger;
-	}
-
-	public int applyVariables(Path etcDir, Map<String, String> variables) throws IOException {
+	public static int applyVariables(Path etcDir, Map<String, String> variables) throws IOException {
 		if (!Files.exists(etcDir)) {
-			logger.warn("Каталог конфигов не найден: " + etcDir);
+			LOGGER.warn("Каталог конфигов не найден: " + etcDir);
 			return 0;
 		}
-
-		logger.step("Подстановка переменных в конфиги: " + etcDir);
+		LOGGER.step("Подстановка переменных в конфиги: " + etcDir);
 
 		int changedCount = 0;
 		int unresolvedCount = 0;
 
 		List<Path> files;
-
 		try (Stream<Path> stream = Files.walk(etcDir)) {
 			files = stream
 					.filter(Files::isRegularFile)
-					.filter(this::isProbablyTextFile)
+					.filter(ConfigProcessor::isProbablyTextFile)
 					.toList();
 		}
 
@@ -73,7 +70,7 @@ public class ConfigProcessor {
 
 			for (Map.Entry<String, String> entry : variables.entrySet()) {
 				String key = entry.getKey();
-				String value = entry.getValue() == null ? "" : entry.getValue();
+				String value = StringUtils.isEmpty(entry.getValue()) ? EMPTY : entry.getValue();
 
 				updated = updated.replace("${" + key + "}", value);
 				updated = updated.replace("$[" + key + "]", value);
@@ -82,28 +79,25 @@ public class ConfigProcessor {
 			if (!updated.equals(original)) {
 				Files.writeString(file, updated);
 				changedCount++;
-				logger.info("Обновлён конфиг: " + etcDir.relativize(file));
+				LOGGER.info("Обновлён конфиг: " + etcDir.relativize(file));
 			}
 
 			List<String> unresolved = findUnresolvedVariables(updated);
 			if (!unresolved.isEmpty()) {
 				unresolvedCount++;
-				logger.warn("Незаменённые переменные в " + file.getFileName() + ": " +
-							String.join(", ", unresolved));
+				LOGGER.warn("Незаменённые переменные в " + file.getFileName() + ": " + String.join(", ", unresolved));
 			}
 		}
 
-		logger.info("Обработано файлов: " + files.size());
-		logger.info("Изменено файлов: " + changedCount);
-
+		LOGGER.info("Обработано файлов: " + files.size());
+		LOGGER.info("Изменено файлов: " + changedCount);
 		if (unresolvedCount > 0) {
-			logger.warn("Файлов с незаменёнными переменными: " + unresolvedCount);
+			LOGGER.warn("Файлов с незаменёнными переменными: " + unresolvedCount);
 		}
-
 		return changedCount;
 	}
 
-	private boolean isProbablyTextFile(Path file) {
+	private static boolean isProbablyTextFile(Path file) {
 		try {
 			if (Files.size(file) > MAX_FILE_SIZE) {
 				return false;
@@ -113,11 +107,10 @@ public class ConfigProcessor {
 		}
 
 		String name = file.getFileName().toString().toLowerCase();
-
 		return TEXT_EXTENSIONS.stream().anyMatch(name::endsWith);
 	}
 
-	private @NotNull List<String> findUnresolvedVariables(String content) {
+	private static @NotNull List<String> findUnresolvedVariables(String content) {
 		List<String> result = new java.util.ArrayList<>();
 
 		Matcher curlyMatcher = UNRESOLVED_CURLY_PATTERN.matcher(content);
@@ -135,7 +128,6 @@ public class ConfigProcessor {
 				result.add(var);
 			}
 		}
-
 		return result;
 	}
 }

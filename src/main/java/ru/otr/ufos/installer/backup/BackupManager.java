@@ -1,84 +1,71 @@
 package ru.otr.ufos.installer.backup;
 
-import lombok.Getter;
+import lombok.experimental.UtilityClass;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import ru.otr.ufos.installer.filesystem.FileManager;
-import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
+
 /**
  * Менеджер бэкапов
  */
+@UtilityClass
 public class BackupManager {
 
-	private final InstallerLogger logger;
-	private final FileManager fileManager;
-	@Getter
-	private final Path backupBaseDir;
+	@Contract("_, _, _ -> new")
+	public static @NotNull BackupResult createFullBackup(Path standDir, String reason, @NotNull Path backupDir) throws IOException {
+		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+		backupDir = backupDir.resolve("backup-" + timestamp + "-" + reason + "-full");
 
-	public BackupManager(InstallerLogger logger, Path backupBaseDir) {
-		this.logger = logger;
-		this.fileManager = new FileManager(logger);
-		this.backupBaseDir = backupBaseDir;
+		LOGGER.step("Создание полного бэкапа стенда");
+		LOGGER.info("Источник: " + standDir);
+		LOGGER.info("Назначение: " + backupDir);
+
+		FileManager.createDirectories(backupDir, LOGGER);
+		FileManager.copyDirectory(standDir, backupDir, LOGGER);
+
+		LOGGER.info("Полный бэкап создан");
+		return new BackupResult(backupDir, List.of(EMPTY), true);
 	}
 
-	public BackupResult createFullBackup(Path standDir, String reason) throws IOException {
+	@Contract("_, _, _, _ -> new")
+	public static @NotNull BackupResult createPartialBackup(Path standDir, String reason, @NotNull List<String> relativePaths, @NotNull Path backupDir) throws IOException {
 		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-		Path backupDir = backupBaseDir.resolve("backup-" + timestamp + "-" + reason + "-full");
+		backupDir = backupDir.resolve("backup-" + timestamp + "-" + reason);
 
-		logger.step("Создание полного бэкапа стенда");
-		logger.info("Источник: " + standDir);
-		logger.info("Назначение: " + backupDir);
+		LOGGER.step("Создание частичного бэкапа");
+		LOGGER.info("Каталог бэкапа: " + backupDir);
 
-		fileManager.createDirectories(backupDir);
-		fileManager.copyDirectory(standDir, backupDir);
-
-		logger.info("Полный бэкап создан");
-
-		return new BackupResult(backupDir, List.of(""), true);
-	}
-
-	public BackupResult createPartialBackup(Path standDir, String reason, @NotNull List<String> relativePaths) throws IOException {
-		String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-		Path backupDir = backupBaseDir.resolve("backup-" + timestamp + "-" + reason);
-
-		logger.step("Создание частичного бэкапа");
-		logger.info("Каталог бэкапа: " + backupDir);
-
-		fileManager.createDirectories(backupDir);
-
-		List<String> backedUp = new ArrayList<>();
-
+		FileManager.createDirectories(backupDir, LOGGER);
+		List<String> affectedPaths = new ArrayList<>();
 		for (String relativePath : relativePaths) {
 			String normalized = relativePath.replace('\\', '/');
+			affectedPaths.add(normalized);
 			Path source = standDir.resolve(normalized);
-
-			if (!fileManager.exists(source)) {
-				logger.warn("Пропуск, не существует: " + normalized);
+			if (!Files.exists(source)) {
+				LOGGER.warn("Пропуск копирования в бэкап, не существует: " + normalized);
 				continue;
 			}
-
 			Path target = backupDir.resolve(normalized);
-
-			if (fileManager.isDirectory(source)) {
-				fileManager.copyDirectory(source, target);
-				logger.info("  ✓ " + normalized + "/");
+			if (Files.isDirectory(source)) {
+				FileManager.copyDirectory(source, target, LOGGER);
+				LOGGER.info("  ✓ " + normalized + "/");
 			} else {
-				fileManager.copyFile(source, target);
-				logger.info("  ✓ " + normalized);
+				FileManager.copyFile(source, target, LOGGER);
+				LOGGER.info("  ✓ " + normalized);
 			}
-
-			backedUp.add(normalized);
 		}
-
-		logger.info("Частичный бэкап создан");
-
-		return new BackupResult(backupDir, backedUp, false);
+		LOGGER.info("Частичный бэкап создан");
+		return new BackupResult(backupDir, affectedPaths, false);
 	}
 }

@@ -2,7 +2,7 @@ package ru.otr.ufos.installer.artifacts;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import ru.otr.ufos.installer.logging.InstallerLogger;
+import ru.otr.ufos.installer.filesystem.FileManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -13,6 +13,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
+
 /**
  * Поиск и проверка артефактов в каталоге artifacts
  */
@@ -20,18 +22,16 @@ public class ArtifactResolver {
 
 	private static final Pattern CORE_WAR_VERSION_PATTERN = Pattern.compile("^sufd-server-(.+)\\.war$", Pattern.CASE_INSENSITIVE);
 
-	private final InstallerLogger logger;
 	private final Path artifactsDir;
 
-	public ArtifactResolver(InstallerLogger logger, Path artifactsDir) {
-		this.logger = logger;
+	public ArtifactResolver(Path artifactsDir) {
 		this.artifactsDir = artifactsDir;
 	}
 
 	public Path resolveCoreWar(Path explicitPath) throws IOException {
 		if (explicitPath != null) {
 			requireFile(explicitPath);
-			logger.info("Ядро указано явно: " + explicitPath);
+			LOGGER.info("Ядро указано явно: " + explicitPath);
 			return explicitPath;
 		}
 
@@ -45,14 +45,14 @@ public class ArtifactResolver {
 		}
 
 		Path result = candidates.get(0);
-		logger.info("Найден файл ядра: " + result);
+		LOGGER.info("Найден файл ядра: " + result);
 		return result;
 	}
 
 	public Path resolveLibsZip(Path explicitPath) throws IOException {
 		if (explicitPath != null) {
 			requireFile(explicitPath);
-			logger.info("Архив библиотек указан явно: " + explicitPath);
+			LOGGER.info("Архив библиотек указан явно: " + explicitPath);
 			return explicitPath;
 		}
 
@@ -66,14 +66,14 @@ public class ArtifactResolver {
 		}
 
 		Path result = candidates.get(0);
-		logger.info("Найден архив библиотек: " + result);
+		LOGGER.info("Найден архив библиотек: " + result);
 		return result;
 	}
 
 	public @Nullable Path resolveAppZip(Path explicitPath) throws IOException {
 		if (explicitPath != null) {
 			requireFile(explicitPath);
-			logger.info("Архив приклада указан явно: " + explicitPath);
+			LOGGER.info("Архив приклада указан явно: " + explicitPath);
 			return explicitPath;
 		}
 
@@ -87,7 +87,7 @@ public class ArtifactResolver {
 		}
 
 		Path result = candidates.get(0);
-		logger.info("Найден архив приклада: " + result);
+		LOGGER.info("Найден архив приклада: " + result);
 		return result;
 	}
 
@@ -96,7 +96,7 @@ public class ArtifactResolver {
 			if (!Files.exists(explicitPath)) {
 				throw new IllegalStateException("Шаблон Jetty не найден: " + explicitPath);
 			}
-			logger.info("Шаблон Jetty указан явно: " + explicitPath);
+			LOGGER.info("Шаблон Jetty указан явно: " + explicitPath);
 			return explicitPath;
 		}
 
@@ -105,7 +105,7 @@ public class ArtifactResolver {
 			// Также разрешаем каталог template рядом с артефактами
 			Path templateDir = artifactsDir.resolve("template");
 			if (Files.exists(templateDir) && Files.isDirectory(templateDir)) {
-				logger.info("Найден каталог шаблона: " + templateDir);
+				LOGGER.info("Найден каталог шаблона: " + templateDir);
 				return templateDir;
 			}
 			throw new IllegalStateException("Не найден шаблон Jetty в каталоге артефактов: " + artifactsDir + ". Ожидался архив вида jetty-template-<version>.zip или каталог template/");
@@ -116,20 +116,20 @@ public class ArtifactResolver {
 		}
 
 		Path result = candidates.get(0);
-		logger.info("Найден шаблон Jetty: " + result);
+		LOGGER.info("Найден шаблон Jetty: " + result);
 		return result;
 	}
 
 	public Path resolveInitSql(Path explicitPath) throws IOException {
 		if (explicitPath != null) {
 			requireFile(explicitPath);
-			logger.info("Init SQL указан явно: " + explicitPath);
+			LOGGER.info("Init SQL указан явно: " + explicitPath);
 			return explicitPath;
 		}
 
 		List<Path> candidates = findFiles(name -> name.toLowerCase().endsWith(".sql"));
 		if (candidates.isEmpty()) {
-			logger.warn("Init SQL не найден. Инициализация БД будет пропущена.");
+			LOGGER.warn("Init SQL не найден. Инициализация БД будет пропущена.");
 			return null;
 		}
 
@@ -138,7 +138,7 @@ public class ArtifactResolver {
 		}
 
 		Path result = candidates.get(0);
-		logger.info("Найден init SQL: " + result);
+		LOGGER.info("Найден init SQL: " + result);
 		return result;
 	}
 
@@ -148,16 +148,16 @@ public class ArtifactResolver {
 
 		if (matcher.matches()) {
 			String version = matcher.group(1);
-			logger.info("Версия ядра из имени файла: " + version);
+			LOGGER.info("Версия ядра из имени файла: " + version);
 			return version;
 		}
 
 		if (fallbackVersion != null && !fallbackVersion.isBlank()) {
-			logger.info("Версия ядра взята из параметра: " + fallbackVersion);
+			LOGGER.info("Версия ядра взята из параметра: " + fallbackVersion);
 			return fallbackVersion;
 		}
 
-		logger.warn("Не удалось определить версию ядра из имени файла: " + fileName);
+		LOGGER.warn("Не удалось определить версию ядра из имени файла: " + fileName);
 		return "unknown";
 	}
 
@@ -172,7 +172,7 @@ public class ArtifactResolver {
 			throw new IllegalStateException("Каталог артефактов не найден: " + artifactsDir);
 		}
 
-		try (Stream<Path> stream = Files.list(artifactsDir)) {
+		try (Stream<Path> stream = FileManager.listFiles(artifactsDir)) {
 			return stream
 					.filter(Files::isRegularFile)
 					.filter(p -> predicate.test(p.getFileName().toString()))

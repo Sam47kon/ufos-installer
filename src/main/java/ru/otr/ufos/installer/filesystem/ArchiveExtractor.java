@@ -1,7 +1,7 @@
 package ru.otr.ufos.installer.filesystem;
 
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -10,17 +10,13 @@ import java.nio.file.StandardCopyOption;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
+
 /**
  * Распаковщик ZIP-архивов с защитой от zip-slip атак
  */
+@UtilityClass
 public class ArchiveExtractor {
-	private final InstallerLogger logger;
-	private final FileManager fileManager;
-
-	public ArchiveExtractor(InstallerLogger logger) {
-		this.logger = logger;
-		this.fileManager = new FileManager(logger);
-	}
 
 	/**
 	 * Распаковать ZIP-архив в указанную директорию
@@ -29,93 +25,79 @@ public class ArchiveExtractor {
 	 * @param targetDir целевая директория
 	 * @throws IOException при ошибке распаковки
 	 */
-	public void extract(@NotNull Path zipFile, Path targetDir) throws IOException {
-		logger.info("Распаковка архива: " + zipFile.getFileName() + " -> " + targetDir);
-
-		fileManager.createDirectories(targetDir);
+	public static void extract(@NotNull Path zipFile, @NotNull Path targetDir) throws IOException {
+		Path base = targetDir.toAbsolutePath().normalize();
+		LOGGER.info("Распаковка архива: " + zipFile.getFileName() + " -> " + targetDir);
+		FileManager.createDirectories(targetDir, LOGGER);
 
 		try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
 			ZipEntry entry;
 			int fileCount = 0;
-
 			while ((entry = zis.getNextEntry()) != null) {
-				Path entryPath = targetDir.resolve(entry.getName()).normalize();
-
+				Path entryPath = base.resolve(entry.getName()).normalize();
 				// Защита от zip-slip атаки
-				if (!entryPath.startsWith(targetDir)) {
+				if (!entryPath.startsWith(base)) {
 					throw new IOException("Обнаружена zip-slip атака: " + entry.getName());
 				}
-
 				if (entry.isDirectory()) {
-					fileManager.createDirectories(entryPath);
+					FileManager.createDirectories(entryPath, LOGGER);
 				} else {
 					// Создаём родительские директории если нужно
-					fileManager.createDirectories(entryPath.getParent());
-
+					FileManager.createDirectories(entryPath.getParent(), LOGGER);
 					// Копируем файл
 					Files.copy(zis, entryPath, StandardCopyOption.REPLACE_EXISTING);
 					fileCount++;
 				}
-
 				zis.closeEntry();
 			}
-
-			logger.info("Распаковано файлов: " + fileCount);
+			LOGGER.info("Распаковано файлов: " + fileCount);
 		}
 	}
 
 	/**
 	 * Распаковать ZIP-архив с очисткой целевой директории
 	 */
-	public void extractAndClear(@NotNull Path zipFile, Path targetDir) throws IOException {
-		logger.info("Очистка и распаковка: " + zipFile.getFileName() + " -> " + targetDir);
-		fileManager.clearDirectory(targetDir);
+	public static void extractAndClear(@NotNull Path zipFile, @NotNull Path targetDir) throws IOException {
+		LOGGER.info("Очистка и распаковка: " + zipFile.getFileName() + " -> " + targetDir);
+		FileManager.clearDirectory(targetDir, LOGGER);
 		extract(zipFile, targetDir);
 	}
 
 	/**
 	 * Распаковать только определённые директории из архива
 	 */
-	public void extractDirectories(@NotNull Path zipFile, Path targetDir, String... dirNames) throws IOException {
-		logger.info("Выборочная распаковка из: " + zipFile.getFileName());
-
-		fileManager.createDirectories(targetDir);
-
+	public static void extractDirectories(@NotNull Path zipFile, @NotNull Path targetDir, String... dirNames) throws IOException {
+		Path base = targetDir.toAbsolutePath().normalize();
+		LOGGER.info("Выборочная распаковка из: " + zipFile.getFileName());
+		FileManager.createDirectories(targetDir, LOGGER);
 		try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
 			ZipEntry entry;
 			int fileCount = 0;
-
 			while ((entry = zis.getNextEntry()) != null) {
 				String entryName = entry.getName();
 				boolean shouldExtract = false;
-
 				for (String dirName : dirNames) {
 					if (entryName.startsWith(dirName + "/") || entryName.equals(dirName)) {
 						shouldExtract = true;
 						break;
 					}
 				}
-
 				if (shouldExtract) {
-					Path entryPath = targetDir.resolve(entryName).normalize();
-
-					if (!entryPath.startsWith(targetDir)) {
+					Path entryPath = base.resolve(entryName).normalize();
+					if (!entryPath.startsWith(base)) {
 						throw new IOException("Обнаружена zip-slip атака: " + entryName);
 					}
-
 					if (entry.isDirectory()) {
-						fileManager.createDirectories(entryPath);
+						FileManager.createDirectories(entryPath, LOGGER);
 					} else {
-						fileManager.createDirectories(entryPath.getParent());
+						FileManager.createDirectories(entryPath.getParent(), LOGGER);
 						Files.copy(zis, entryPath, StandardCopyOption.REPLACE_EXISTING);
 						fileCount++;
 					}
 				}
-
 				zis.closeEntry();
 			}
-
-			logger.info("Распаковано файлов: " + fileCount);
+			LOGGER.info("Распаковано файлов: " + fileCount);
 		}
 	}
 }

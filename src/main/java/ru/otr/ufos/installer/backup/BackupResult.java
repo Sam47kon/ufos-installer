@@ -6,5 +6,9 @@ import java.util.List;
 /**
  * Результат создания бэкапа
  */
-public record BackupResult(Path backupDir, List<String> relativePaths, boolean full) {
+public record BackupResult(
+		Path backupDir,
+		List<String> affectedPaths,
+		boolean full
+) {
 }

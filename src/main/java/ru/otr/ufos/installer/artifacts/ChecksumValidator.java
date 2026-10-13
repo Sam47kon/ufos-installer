@@ -1,7 +1,8 @@
 package ru.otr.ufos.installer.artifacts;
 
+import lombok.experimental.UtilityClass;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jetbrains.annotations.NotNull;
-import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,15 +14,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
+
 /**
  * Валидатор контрольных сумм SHA-256
  */
+@UtilityClass
 public class ChecksumValidator {
-	private final InstallerLogger logger;
-
-	public ChecksumValidator(InstallerLogger logger) {
-		this.logger = logger;
-	}
 
 	/**
 	 * Проверить контрольные суммы файлов из файла checksums.sha256
@@ -31,50 +30,51 @@ public class ChecksumValidator {
 	 * @return true если все суммы совпадают
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-	public boolean validate(Path checksumsFile, Path artifactsDir) throws IOException {
+	public static boolean validate(Path checksumsFile, Path artifactsDir) {
 		if (!Files.exists(checksumsFile)) {
-			logger.warn("Файл контрольных сумм не найден: " + checksumsFile);
-			return true; // пропускаем проверку
+			LOGGER.warn("Файл контрольных сумм не найден: " + checksumsFile);
+			// пропускаем проверку
+			return true;
 		}
-
-		logger.info("Проверка контрольных сумм...");
-
-		Map<String, String> expectedChecksums = parseChecksumsFile(checksumsFile);
-		boolean allValid = true;
-
-		for (Map.Entry<String, String> entry : expectedChecksums.entrySet()) {
-			String fileName = entry.getKey();
-			String expectedHash = entry.getValue();
-			Path filePath = artifactsDir.resolve(fileName);
-
-			if (!Files.exists(filePath)) {
-				logger.warn("Файл не найден: " + fileName);
-				allValid = false;
-				continue;
-			}
-
-			String actualHash = calculateSHA256(filePath);
-
-			if (expectedHash.equalsIgnoreCase(actualHash)) {
-				logger.info("  ✓ " + fileName);
-			} else {
-				logger.error("  ✗ " + fileName + " - контрольная сумма не совпадает");
-				logger.error("    Ожидалось: " + expectedHash);
-				logger.error("    Получено:  " + actualHash);
-				allValid = false;
-			}
+		LOGGER.info("Проверка контрольных сумм...");
+		try {
+			Map<String, String> expectedChecksums = parseChecksumsFile(checksumsFile);
+			MutableBoolean allValid = new MutableBoolean(true);
+			expectedChecksums.forEach((fileName, expectedHash) -> {
+				Path filePath = artifactsDir.resolve(fileName);
+				if (!Files.exists(filePath)) {
+					LOGGER.warn("Файл не найден: " + fileName);
+					allValid.setFalse();
+					return;
+				}
+				String actualHash;
+				try {
+					actualHash = calculateSHA256(filePath);
+				} catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+				if (expectedHash.equalsIgnoreCase(actualHash)) {
+					LOGGER.info("  ✓ " + fileName);
+				} else {
+					LOGGER.error("  ✗ " + fileName + " - контрольная сумма не совпадает");
+					LOGGER.error("    Ожидалось: " + expectedHash);
+					LOGGER.error("    Получено:  " + actualHash);
+					allValid.setFalse();
+				}
+			});
+			return allValid.isTrue();
+		} catch (Exception e) {
+			LOGGER.error("При выполнении проверки контрольных сумм возникла ошибка", e);
+			return false;
 		}
-
-		return allValid;
 	}
 
 	/**
 	 * Рассчитать SHA-256 хеш файла
 	 */
-	public String calculateSHA256(Path file) throws IOException {
+	private static @NotNull String calculateSHA256(Path file) throws IOException {
 		try {
 			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-
 			try (InputStream is = Files.newInputStream(file)) {
 				byte[] buffer = new byte[8192];
 				int read;
@@ -82,10 +82,8 @@ public class ChecksumValidator {
 					digest.update(buffer, 0, read);
 				}
 			}
-
 			byte[] hashBytes = digest.digest();
 			return bytesToHex(hashBytes);
-
 		} catch (NoSuchAlgorithmException e) {
 			throw new IOException("SHA-256 не поддерживается", e);
 		}
@@ -95,31 +93,26 @@ public class ChecksumValidator {
 	 * Парсить файл контрольных сумм
 	 * Формат: <hash>  <filename>
 	 */
-	private @NotNull Map<String, String> parseChecksumsFile(Path checksumsFile) throws IOException {
+	private static @NotNull Map<String, String> parseChecksumsFile(Path checksumsFile) throws IOException {
 		Map<String, String> checksums = new HashMap<>();
 		List<String> lines = Files.readAllLines(checksumsFile);
-
-		for (String line : lines) {
-			line = line.trim();
-			if (line.isEmpty() || line.startsWith("#")) {
-				continue;
-			}
-
-			String[] parts = line.split("\\s+", 2);
-			if (parts.length == 2) {
-				String hash = parts[0];
-				String fileName = parts[1];
-				checksums.put(fileName, hash);
-			}
-		}
-
+		lines.stream()
+				.map(String::trim)
+				.filter(line -> !line.isEmpty() && !line.startsWith("#"))
+				.map(line -> line.split("\\s+", 2))
+				.filter(parts -> parts.length == 2)
+				.forEach(parts -> {
+					String hash = parts[0];
+					String fileName = parts[1];
+					checksums.put(fileName, hash);
+				});
 		return checksums;
 	}
 
 	/**
 	 * Конвертировать байты в hex-строку
 	 */
-	private @NotNull String bytesToHex(byte @NotNull [] bytes) {
+	private static @NotNull String bytesToHex(byte @NotNull [] bytes) {
 		StringBuilder sb = new StringBuilder();
 		for (byte b : bytes) {
 			sb.append(String.format("%02x", b));

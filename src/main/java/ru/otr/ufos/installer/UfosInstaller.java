@@ -6,6 +6,7 @@ import picocli.CommandLine;
 import ru.otr.ufos.installer.cli.CliParser;
 import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.core.Scenario;
+import ru.otr.ufos.installer.filesystem.FileManager;
 import ru.otr.ufos.installer.gui.InstallerFrame;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 import ru.otr.ufos.installer.scenarios.InitScenario;
@@ -21,6 +22,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Scanner;
+
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
 
 /**
  * Точка входа инсталлятора УФОС
@@ -84,27 +88,16 @@ public class UfosInstaller {
 			return;
 		}
 
-		Path logFile = createLogFile();
-
-		InstallerLogger logger = new InstallerLogger(logFile, cli.isVerbose());
-
-		logger.info("==================================================");
-		logger.info("UFOS Stand Installer");
-		logger.info("==================================================");
-		logger.info("Лог-файл: " + logFile.toAbsolutePath());
+		// Инициализация общего логгера
+		InstallerLogger.init(createLogFile(), cli.isVerbose());
+		LOGGER.info("==================================================");
+		LOGGER.info("UFOS Stand Installer");
+		LOGGER.info("==================================================");
+		LOGGER.info("Лог-файл: " + LOGGER.getLogFile().toAbsolutePath());
 
 		try {
 			Scenario scenario = Scenario.fromCommand(cli.getMode());
-
-			InstallerContext context = new InstallerContext(
-					scenario,
-					cli.getStandDir(),
-					cli.getArtifactsDir(),
-					cli.getBackupDir(),
-					logger
-			);
-			// Консольный prompt
-			context.setUserPrompt(question -> {
+			InstallerContext context = new InstallerContext(scenario, cli.getStandDir(), cli.getArtifactsDir(), cli.getBackupDir(), question -> {
 				System.out.print(question + " [y/N]: ");
 				Scanner scanner = new Scanner(System.in);
 				if (scanner.hasNextLine()) {
@@ -116,10 +109,10 @@ public class UfosInstaller {
 
 			fillContextFromCli(context, cli);
 
-			logger.info("Режим: " + scenario.getDescription());
-			logger.info("Стенд: " + cli.getStandDir());
-			logger.info("Артефакты: " + cli.getArtifactsDir());
-			logger.info("Бэкапы: " + cli.getBackupDir());
+			LOGGER.info("Режим: " + scenario.getDescription());
+			LOGGER.info("Стенд: " + cli.getStandDir());
+			LOGGER.info("Артефакты: " + cli.getArtifactsDir());
+			LOGGER.info("Бэкапы: " + cli.getBackupDir());
 
 			if (cli.isDryRun()) {
 				showDryRun(context);
@@ -130,21 +123,20 @@ public class UfosInstaller {
 			ScenarioExecutor executor = createExecutor(scenario);
 			executor.execute(context);
 
-			logger.info("==================================================");
-			logger.info("Работа инсталлятора завершена успешно");
-			logger.info("==================================================");
+			LOGGER.info("==================================================");
+			LOGGER.info("Работа инсталлятора завершена успешно");
+			LOGGER.info("==================================================");
 
 			System.exit(0);
 
 		} catch (Exception e) {
-			logger.error("Работа инсталлятора завершена с ошибкой", e);
+			LOGGER.error("Работа инсталлятора завершена с ошибкой", e);
 			System.exit(1);
 		}
 	}
 
 	private static void fillContextFromCli(@NotNull InstallerContext context, @NotNull CliParser cli) {
 		context.setUfosVersion(cli.getUfosVersion());
-		context.setAppVersion(cli.getAppVersion());
 
 		context.setCoreWar(cli.getCoreWar());
 		context.setLibsZip(cli.getLibsZip());
@@ -177,68 +169,66 @@ public class UfosInstaller {
 	}
 
 	private static void showDryRun(@NotNull InstallerContext context) {
-		InstallerLogger logger = context.getLogger();
-
-		logger.step("[DRY-RUN] План выполнения");
-		logger.info("");
-		logger.info("Сценарий:   " + context.getScenario().getDescription());
-		logger.info("Стенд:      " + context.getStandDir());
-		logger.info("Артефакты:  " + context.getArtifactsDir());
-		logger.info("Бэкапы:     " + context.getBackupDir());
-		logger.info("");
+		LOGGER.step("[DRY-RUN] План выполнения");
+		LOGGER.info(EMPTY);
+		LOGGER.info("Сценарий:   " + context.getScenario().getDescription());
+		LOGGER.info("Стенд:      " + context.getStandDir());
+		LOGGER.info("Артефакты:  " + context.getArtifactsDir());
+		LOGGER.info("Бэкапы:     " + context.getBackupDir());
+		LOGGER.info(EMPTY);
 
 		switch (context.getScenario()) {
 			case INIT:
-				logger.info(" 1. Проверка окружения");
-				logger.info(" 2. Поиск артефактов");
-				logger.info(" 3. Проверка контрольных сумм");
-				logger.info(" 4. Проверка доступности БД");
-				logger.info(" 5. Создание структуры стенда из шаблона Jetty");
-				logger.info(" 6. Подстановка переменных в etc/");
-				logger.info(" 7. Размещение WAR-файла ядра");
-				logger.info(" 8. Распаковка библиотек в lib/ext/");
-				logger.info(" 9. Размещение приклада в sufd.config/ и sql-migrations/");
-				logger.info("10. Выполнение init SQL");
-				logger.info("11. Применение прав доступа");
-				logger.info("12. Формирование отчёта");
+				LOGGER.info(" 1. Проверка окружения");
+				LOGGER.info(" 2. Поиск артефактов");
+				LOGGER.info(" 3. Проверка контрольных сумм");
+				LOGGER.info(" 4. Проверка доступности БД");
+				LOGGER.info(" 5. Создание структуры стенда из шаблона Jetty");
+				LOGGER.info(" 6. Подстановка переменных в etc/");
+				LOGGER.info(" 7. Размещение WAR-файла ядра");
+				LOGGER.info(" 8. Распаковка библиотек в lib/ext/");
+				LOGGER.info(" 9. Размещение приклада в sufd.config/ и sql-migrations/");
+				LOGGER.info("10. Выполнение init SQL");
+				LOGGER.info("11. Применение прав доступа");
+				LOGGER.info("12. Формирование отчёта");
 				break;
 
 			case UPDATE_CORE:
-				logger.info(" 1. Проверка окружения");
-				logger.info(" 2. Поиск артефактов");
-				logger.info(" 3. Проверка контрольных сумм");
-				logger.info(" 4. Создание бэкапа изменяемых частей");
-				logger.info(" 5. Замена WAR-файла ядра");
-				logger.info(" 6. Замена lib/ext/");
-				logger.info(" 7. Замена sufd.config/");
-				logger.info(" 8. Замена sql-migrations/");
-				logger.info(" 9. Обновление version.txt");
-				logger.info("10. Восстановление прав доступа");
-				logger.info("11. Формирование отчёта");
+				LOGGER.info(" 1. Проверка окружения");
+				LOGGER.info(" 2. Поиск артефактов");
+				LOGGER.info(" 3. Проверка контрольных сумм");
+				LOGGER.info(" 4. Создание бэкапа изменяемых частей");
+				LOGGER.info(" 5. Замена WAR-файла ядра");
+				LOGGER.info(" 6. Замена lib/ext/");
+				LOGGER.info(" 7. Замена sufd.config/");
+				LOGGER.info(" 8. Замена sql-migrations/");
+				LOGGER.info(" 9. Обновление version.txt");
+				LOGGER.info("10. Восстановление прав доступа");
+				LOGGER.info("11. Формирование отчёта");
 				break;
 
 			case UPDATE_JETTY:
-				logger.info(" 1. Проверка окружения");
-				logger.info(" 2. Поиск артефактов");
-				logger.info(" 3. Проверка контрольных сумм");
-				logger.info(" 4. Создание полного бэкапа стенда");
-				logger.info(" 5. Замена Jetty-части");
-				logger.info(" 6. Обновление УФОС-части");
-				logger.info(" 7. Формирование отчёта");
+				LOGGER.info(" 1. Проверка окружения");
+				LOGGER.info(" 2. Поиск артефактов");
+				LOGGER.info(" 3. Проверка контрольных сумм");
+				LOGGER.info(" 4. Создание полного бэкапа стенда");
+				LOGGER.info(" 5. Замена Jetty-части");
+				LOGGER.info(" 6. Обновление УФОС-части");
+				LOGGER.info(" 7. Формирование отчёта");
 				break;
 
 			default:
-				logger.warn("Неизвестный сценарий");
+				LOGGER.warn("Неизвестный сценарий");
 		}
 
-		logger.info("");
-		logger.info("[DRY-RUN] Для реального выполнения уберите флаг --dry-run");
+		LOGGER.info(EMPTY);
+		LOGGER.info("[DRY-RUN] Для реального выполнения уберите флаг --dry-run");
 	}
 
 	private static Path createLogFile() {
 		try {
 			Path logDir = getLogDirectory();
-			Files.createDirectories(logDir);
+			FileManager.createDirectories(logDir);
 
 			String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
 			return logDir.resolve("installer-" + timestamp + ".log");

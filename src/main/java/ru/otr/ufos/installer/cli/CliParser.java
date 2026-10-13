@@ -8,6 +8,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+
 /**
  * Парсер аргументов командной строки
  */
@@ -44,7 +46,7 @@ public class CliParser implements Runnable {
 	@Option(
 			names = {"--backup-dir", "-b"},
 			description = "Путь к каталогу бэкапов. По умолчанию: <родитель стенда>/backups/<имя стенда>",
-			defaultValue = ""
+			defaultValue = EMPTY
 	)
 	private Path backupDir;
 
@@ -71,12 +73,6 @@ public class CliParser implements Runnable {
 			description = "Путь к архиву приклада. Если не указан, ищется автоматически в --artifacts-dir"
 	)
 	private Path appZip;
-
-	@Option(
-			names = {"--app-version"},
-			description = "Версия приклада"
-	)
-	private String appVersion;
 
 	@Option(
 			names = {"--jetty-template"},
@@ -188,7 +184,7 @@ public class CliParser implements Runnable {
 		Path absoluteStandDir = standDir.toAbsolutePath().normalize();
 		Path parent = absoluteStandDir.getParent();
 
-		if (parent == null) {
+		if (null == parent) {
 			return Path.of("backups").resolve(absoluteStandDir.getFileName());
 		}
 

@@ -28,4 +28,9 @@ public enum Scenario {
 		}
 		throw new IllegalArgumentException("Неизвестный сценарий: " + command);
 	}
+
+	@Override
+	public String toString() {
+		return description + " (" + command + ')';
+	}
 }

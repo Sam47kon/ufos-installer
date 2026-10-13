@@ -1,5 +1,7 @@
 package ru.otr.ufos.installer.scenarios;
 
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.otr.ufos.installer.artifacts.ArtifactResolver;
@@ -11,13 +13,15 @@ import ru.otr.ufos.installer.db.DatabaseInitializer;
 import ru.otr.ufos.installer.filesystem.ArchiveHelper;
 import ru.otr.ufos.installer.filesystem.FileManager;
 import ru.otr.ufos.installer.filesystem.PermissionsManager;
-import ru.otr.ufos.installer.logging.InstallerLogger;
 import ru.otr.ufos.installer.report.ReportGenerator;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
 
 /**
  * Сценарий 1: первичная развёртка стенда
@@ -26,19 +30,15 @@ public class InitScenario implements ScenarioExecutor {
 
 	@Override
 	public void execute(@NotNull InstallerContext context) throws Exception {
-		InstallerLogger logger = context.getLogger();
+		LOGGER.info("==================================================");
+		LOGGER.info("СЦЕНАРИЙ: ПЕРВИЧНАЯ УСТАНОВКА СТЕНДА");
+		LOGGER.info("==================================================");
 
-		logger.info("==================================================");
-		logger.info("СЦЕНАРИЙ: ПЕРВИЧНАЯ УСТАНОВКА СТЕНДА");
-		logger.info("==================================================");
+		EnvironmentValidator.validateJava();
+		EnvironmentValidator.validateOs();
+		EnvironmentValidator.validateStandParentWritable(context.getStandDir(), false);
 
-		EnvironmentValidator environmentValidator = new EnvironmentValidator(logger);
-		environmentValidator.validateJava();
-		environmentValidator.validateOs();
-		environmentValidator.validateStandParentWritable(context.getStandDir(), false);
-
-		ArtifactResolver resolver = new ArtifactResolver(logger, context.getArtifactsDir());
-
+		ArtifactResolver resolver = new ArtifactResolver(context.getArtifactsDir());
 		// Поиск артефактов
 		Path templateSource = resolver.resolveJettyTemplate(context.getJettyTemplate());
 		Path coreWar = resolver.resolveCoreWar(context.getCoreWar());
@@ -47,10 +47,8 @@ public class InitScenario implements ScenarioExecutor {
 		Path initSql = resolver.resolveInitSql(context.getInitSql());
 
 		// Контрольные суммы
-		ChecksumValidator checksumValidator = new ChecksumValidator(logger);
 		Path checksumsFile = context.getArtifactsDir().resolve("checksums.sha256");
-
-		if (!checksumValidator.validate(checksumsFile, context.getArtifactsDir())) {
+		if (!ChecksumValidator.validate(checksumsFile, context.getArtifactsDir())) {
 			throw new IllegalStateException("Проверка контрольных сумм завершилась с ошибками");
 		}
 
@@ -62,46 +60,35 @@ public class InitScenario implements ScenarioExecutor {
 		String dbPassword = context.getDbPassword();
 
 		boolean skipDb = context.isSkipDb();
-
-		DatabaseInitializer databaseInitializer = new DatabaseInitializer(logger);
-
 		if (!skipDb) {
-			databaseInitializer.checkConnection(dbHost, dbPort, dbName, dbUser, dbPassword);
-			databaseInitializer.logTableCount(dbHost, dbPort, dbName, dbUser, dbPassword);
+			DatabaseInitializer.checkConnection(dbHost, dbPort, dbName, dbUser, dbPassword);
+			DatabaseInitializer.logTableCount(dbHost, dbPort, dbName, dbUser, dbPassword);
 		} else {
-			logger.warn("Проверка БД пропущена (--skip-db)");
+			LOGGER.warn("Проверка БД пропущена (--skip-db)");
 		}
 
 		// Развёртывание шаблона
-		FileManager fileManager = new FileManager(logger);
-		ArchiveHelper archiveHelper = new ArchiveHelper(logger);
-
 		Path standDir = context.getStandDir();
-
 		boolean force = context.isForce();
-
 		if (Files.exists(standDir)) {
-			try (var stream = Files.list(standDir)) {
+			try (var stream = FileManager.listFiles(standDir)) {
 				boolean notEmpty = stream.findAny().isPresent();
-
 				if (notEmpty && !force) {
 					throw new IllegalStateException("Каталог стенда уже существует и не пуст: " + standDir + ". Используйте --force для перезаписи.");
 				}
-
 				if (notEmpty) {
-					logger.warn("Каталог стенда не пуст. Будет удалён из-за --force");
-					fileManager.deleteRecursively(standDir);
+					LOGGER.warn("Каталог стенда не пуст. Будет удалён из-за --force");
+					FileManager.deleteRecursively(standDir, LOGGER);
 				}
 			}
 		}
 
-		logger.step("Создание структуры стенда из шаблона");
-
+		LOGGER.step("Создание структуры стенда из шаблона");
 		if (Files.isDirectory(templateSource)) {
-			fileManager.copyDirectory(templateSource, standDir);
+			FileManager.copyDirectory(templateSource, standDir, LOGGER);
 			context.addChange("Создана структура стенда из каталога шаблона: " + templateSource);
 		} else {
-			archiveHelper.extractSmart(templateSource, standDir, false);
+			ArchiveHelper.extractSmart(templateSource, standDir, false);
 			context.addChange("Создана структура стенда из архива шаблона: " + templateSource.getFileName());
 		}
 
@@ -110,40 +97,33 @@ public class InitScenario implements ScenarioExecutor {
 		String coreVersion = resolver.extractCoreVersion(coreWar, ufosVersion);
 
 		// Подстановка переменных в etc
-		Map<String, String> variables = buildVariables(context, coreVersion);
-		ConfigProcessor configProcessor = new ConfigProcessor(logger);
-		int changedConfigs = configProcessor.applyVariables(standDir.resolve("etc"), variables);
-
+		int changedConfigs = ConfigProcessor.applyVariables(standDir.resolve("etc"), buildVariables(context, coreVersion));
 		context.addChange("Обновлено конфигурационных файлов: " + changedConfigs);
 
 		// Размещение ядра
-		logger.step("Размещение ядра");
-
+		LOGGER.step("Размещение ядра");
 		Path webappsDir = standDir.resolve("webapps");
-		fileManager.createDirectories(webappsDir);
+		FileManager.createDirectories(webappsDir, LOGGER);
 
 		Path targetWar = webappsDir.resolve(coreWar.getFileName());
-		fileManager.copyFile(coreWar, targetWar);
-
-		logger.info("Ядро размещено: " + targetWar);
+		FileManager.copyFile(coreWar, targetWar, LOGGER);
+		LOGGER.info("Ядро размещено: " + targetWar);
 		context.addChange("Создано: " + targetWar);
 
 		// Библиотеки
-		logger.step("Распаковка библиотек в lib/ext");
-
+		LOGGER.step("Распаковка библиотек в lib/ext");
 		Path libExtDir = standDir.resolve("lib/ext");
-		archiveHelper.extractSmart(libsZip, libExtDir, true);
-
+		ArchiveHelper.extractSmart(libsZip, libExtDir, true);
 		context.addChange("Обновлено: lib/ext/");
 
 		// Приклад
-		logger.step("Размещение приклада");
-		ScenariosUtils.deployApp(context, appZip, standDir, archiveHelper, fileManager);
+		LOGGER.step("Размещение приклада");
+		ScenariosUtils.deployApp(context, appZip, standDir);
 
 		// Init SQL
 		if (!skipDb) {
 			if (initSql != null) {
-				databaseInitializer.executeSqlFile(
+				DatabaseInitializer.executeSqlFile(
 						initSql,
 						dbHost,
 						dbPort,
@@ -151,24 +131,19 @@ public class InitScenario implements ScenarioExecutor {
 						dbUser,
 						dbPassword
 				);
-
 				context.addChange("Выполнен init SQL: " + initSql.getFileName());
 			} else {
-				logger.warn("Init SQL не найден. Инициализация БД пропущена.");
+				LOGGER.warn("Init SQL не найден. Инициализация БД пропущена.");
 			}
 		} else {
-			logger.warn("Выполнение init SQL пропущено (--skip-db)");
+			LOGGER.warn("Выполнение init SQL пропущено (--skip-db)");
 		}
 
 		// Права доступа
-		PermissionsManager permissionsManager = new PermissionsManager(logger);
+		PermissionsManager permissionsManager = new PermissionsManager(context.getChownUser());
 		permissionsManager.applyDefaults(standDir);
-
-		String chownUser = context.getChownUser();
-
-		if (chownUser != null && !chownUser.isBlank()) {
-			permissionsManager.changeOwner(standDir, chownUser);
-			context.addChange("Выполнен chown -R " + chownUser + " для каталога стенда");
+		if (permissionsManager.hasValidChownUser() && permissionsManager.changeOwnerChownUser(standDir)) {
+			context.addChange("Выполнен chown -R " + permissionsManager.getChownUser() + " для каталога стенда");
 		}
 
 		// Отчёт
@@ -180,9 +155,7 @@ public class InitScenario implements ScenarioExecutor {
 		context.addReport("Шаблон", templateSource.toString());
 		context.addReport("Init SQL", initSql == null ? "не выполнен" : initSql.getFileName().toString());
 		context.addReport("БД", dbUser + "@" + dbHost + ":" + dbPort + "/" + dbName);
-
-		ReportGenerator reportGenerator = new ReportGenerator(logger);
-		reportGenerator.printReport(context);
+		ReportGenerator.printReport(context);
 	}
 
 	private @NotNull Map<String, String> buildVariables(@NotNull InstallerContext context, String coreVersion) {
@@ -192,18 +165,17 @@ public class InitScenario implements ScenarioExecutor {
 		putIfNotNull(variables, "DB_PORT", context.getDbPort());
 		putIfNotNull(variables, "DB_NAME", context.getDbName());
 		putIfNotNull(variables, "DB_USER", context.getDbUser());
-
-		// Пароль тоже подставляем, если нужно.
-		// Если не хочется хранить его в конфигах, можно потом заменить на маску.
 		putIfNotNull(variables, "DB_PASSWORD", context.getDbPassword());
-
 		putIfNotNull(variables, "VERSION", coreVersion);
 		putIfNotNull(variables, "STAND_DIR", context.getStandDir().toAbsolutePath().toString());
 
+		if (MapUtils.isNotEmpty(context.getCustomVariables())) {
+			context.getCustomVariables().forEach((key, value) -> putIfNotNull(variables, key, value));
+		}
 		return variables;
 	}
 
 	private void putIfNotNull(@NotNull Map<String, String> map, String key, String value) {
-		map.put(key, value == null ? "" : value);
+		map.put(key, StringUtils.isEmpty(value) ? EMPTY : value);
 	}
 }

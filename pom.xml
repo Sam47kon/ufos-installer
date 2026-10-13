@@ -17,12 +17,15 @@
 		<maven.compiler.source>17</maven.compiler.source>
 		<maven.compiler.target>17</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
 		<snakeyaml.version>2.2</snakeyaml.version>
 		<picocli.version>4.7.5</picocli.version>
 		<commons-compress.version>1.26.0</commons-compress.version>
 		<postgresql.version>42.7.3</postgresql.version>
 		<slf4j.version>2.0.12</slf4j.version>
 		<logback.version>1.5.3</logback.version>
+		<commons-collections4.version>4.5.0</commons-collections4.version>
+		<junit.version>5.10.2</junit.version>
 	</properties>
 
 	<dependencies>
@@ -77,11 +80,17 @@
 			<version>${logback.version}</version>
 		</dependency>
 
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-collections4</artifactId>
+			<version>${commons-collections4.version}</version>
+		</dependency>
+
 		<!-- Testing -->
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter</artifactId>
-			<version>5.10.2</version>
+			<version>${junit.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
