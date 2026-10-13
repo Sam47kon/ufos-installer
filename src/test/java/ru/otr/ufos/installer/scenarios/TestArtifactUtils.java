@@ -6,6 +6,8 @@ import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.core.Scenario;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,12 +46,13 @@ final class TestArtifactUtils {
 		String dbName = "missing_" + UUID.randomUUID().toString().replace("-", "").toLowerCase();
 		return "jdbc:h2:mem:" + dbName + ";IFEXISTS=TRUE;DB_CLOSE_DELAY=-1";
 	}
+
 	static @NotNull String unavailableH2Url(String dbName) {
 		return "jdbc:h2:mem:" + dbName + ";IFEXISTS=TRUE;DB_CLOSE_DELAY=-1";
 	}
 
 	static @NotNull String errorDbName() {
-		return  "missing_" + UUID.randomUUID().toString().replace("-", "").toLowerCase();
+		return "missing_" + UUID.randomUUID().toString().replace("-", "").toLowerCase();
 	}
 
 	static @NotNull Path writeFile(@NotNull Path file, String content) throws IOException {
@@ -113,11 +116,57 @@ final class TestArtifactUtils {
 		);
 	}
 
-	static @NotNull Path createBrokenLibsZip(@NotNull Path artifactsDir, String version) throws IOException {
-		return writeFile(
-				artifactsDir.resolve("sufd-server-libs-" + version + ".zip"),
-				"this is not a zip archive"
-		);
+	/**
+	 * Создаёт битый архив
+	 * При попытке взаимодействия: {@link java.util.zip.ZipException} {@code "invalid entry CRC (expected 0xdeadbeef but got 0x5138dfcd)"}
+	 *
+	 * @since Создано ИИ
+	 */
+	static @NotNull Path createBrokenLibsZip(@NotNull Path artifactsDir) throws IOException {
+		Path zipFile = artifactsDir.resolve("sufd-server-libs-N-M.zip");
+		Path parent = zipFile.getParent();
+		if (parent != null) {
+			Files.createDirectories(parent);
+		}
+
+		byte[] fileName = "lib.txt".getBytes(StandardCharsets.US_ASCII);
+		byte[] fileData = "new-lib".getBytes(StandardCharsets.UTF_8);
+
+		ByteBuffer buffer = ByteBuffer
+				.allocate(30 + fileName.length + fileData.length)
+				.order(ByteOrder.LITTLE_ENDIAN);
+
+		// Local file header signature
+		buffer.putInt(0x04034b50);
+		// Version needed to extract
+		buffer.putShort((short) 20);
+		// General purpose bit flag
+		buffer.putShort((short) 0);
+		// Compression method: 0 = stored
+		buffer.putShort((short) 0);
+		// Last mod file time
+		buffer.putShort((short) 0);
+		// Last mod file date
+		buffer.putShort((short) 0);
+
+		// --> CRC-32: намеренно неверный <--
+		buffer.putInt(0xDEADBEEF);
+
+		// Compressed size
+		buffer.putInt(fileData.length);
+		// Uncompressed size
+		buffer.putInt(fileData.length);
+		// File name length
+		buffer.putShort((short) fileName.length);
+		// Extra field length
+		buffer.putShort((short) 0);
+		// File name
+		buffer.put(fileName);
+		// File data
+		buffer.put(fileData);
+
+		Files.write(zipFile, buffer.array());
+		return zipFile;
 	}
 
 	static @NotNull Path createAppZip(@NotNull Path artifactsDir, String version) throws IOException {
