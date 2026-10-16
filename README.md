@@ -1,71 +1,1114 @@
-# ufos-installer #
+# UFOS Stand Installer
 
-Инсталятор УФОС
+Инструмент для развертывания и обновления стендов УФОС.
 
-### Примеры команд ###
+Поддерживаются два сценария:
 
-#### Первичная установка ####
+| Режим         | Описание                                          |
+|---------------|---------------------------------------------------|
+| `init`        | первичная установка стенда с нуля                 |
+| `update-core` | обновление ядра и приклада без пересоздания Jetty |
 
+Сценарий обновления с пересозданием Jetty в текущей версии не поддерживается.
+
+---
+
+## Содержание
+
+1. [Возможности](#возможности)
+2. [Требования](#требования)
+3. [Сборка проекта](#сборка-проекта)
+4. [Структура дистрибутива](#структура-дистрибутива)
+5. [Быстрый старт](#быстрый-старт)
+6. [Подробная инструкция администратора](#подробная-инструкция-администратора)
+7. [Параметры командной строки](#параметры-командной-строки)
+8. [Сценарий 1: первичная установка](#сценарий-1-первичная-установка)
+9. [Сценарий 2: обновление ядра и приклада](#сценарий-2-обновление-ядра-и-приклада)
+10. [Бэкапы и откат](#бэкапы-и-откат)
+11. [Логи и отчёты](#логи-и-отчёты)
+12. [Примеры команд](#примеры-команд)
+13. [Документация по коду](#документация-по-коду)
+14. [Тесты](#тесты)
+15. [Устранение неполадок](#устранение-неполадок)
+
+---
+
+## Возможности
+
+Инсталлятор умеет:
+
+- разворачивать новый стенд из шаблона;
+- обновлять ядро и приклад на существующем стенде;
+- автоматически искать артефакты в каталоге;
+- проверять контрольные суммы `checksums.sha256`;
+- подставлять переменные в конфигурационные файлы в каталоге `etc/`;
+- размещать:
+    - WAR-файл ядра в `webapps/`;
+    - библиотеки ядра в `lib/ext/`;
+    - приклад в `sufd.config/`;
+    - SQL-миграции в `sql-migrations/`;
+    - файл версии `version.txt`;
+- проверять доступность базы данных;
+- выполнять первичный init SQL-скрипт;
+- создавать бэкапы перед обновлением;
+- выполнять откат из бэкапа при ошибке;
+- восстанавливать права доступа на Linux;
+- выполнять `chown -R`, если задан `--chown-user`;
+- работать через CLI и через простой GUI;
+- поддерживать `--dry-run`;
+- формировать итоговый отчёт.
+
+---
+
+## Требования
+
+### Обязательные
+
+- Java 17 или выше.
+- Для Linux-обёрток: `bash`.
+- Для Windows-обёрток: `cmd`.
+
+### Для первичной установки с БД
+
+- заранее созданная база данных PostgreSQL;
+- заранее созданный пользователь БД с необходимыми правами;
+- доступ к БД с машины, где запускается инсталлятор;
+- при необходимости — файл первичного наполнения БД, например `create.sql`.
+
+Инсталлятор не создаёт саму базу данных и не создаёт пользователя.
+
+---
+
+## Сборка проекта
+
+Сборка выполняется через Maven:
+
+```bash
+mvn clean package
 ```
-# Через jar
-java -jar ufos-installer.jar \
-  --mode init \
-  --stand-dir /opt/ufos/STAND \
-  --artifacts-dir /opt/ufos/install/artifacts \
-  --jetty-template /opt/ufos/install/artifacts/jetty-template-12.1.10.zip \
-  --core-war /opt/ufos/install/artifacts/sufd-server-8.23.165.war \
-  --libs-zip /opt/ufos/install/artifacts/sufd-server-libs-8.23.165.zip \
-  --app-zip /opt/ufos/install/artifacts/func-demo.zip \
-  --init-sql /opt/ufos/install/artifacts/init-database.sql \
-  --db-host localhost \
-  --db-port 5432 \
-  --db-name sufd \
-  --db-user sufd \
-  --db-password secret \
-  --chown-user ufos
 
-# Через обёртку:
+После сборки jar-файл будет находиться в каталоге `target`, например:
+
+```text
+target/ufos-installer-1.0.1.jar
+```
+
+Этот файл можно использовать напрямую:
+
+```bash
+java -jar ufos-installer-1.0.1.jar --help
+```
+
+---
+
+## Структура дистрибутива
+
+Для работы инсталлятору нужен каталог с артефактами.
+
+Рекомендуемая структура:
+
+```text
+install/
+├── ufos-installer.jar
+├── init-stand.sh
+├── update-stand.sh
+├── init-stand.bat
+├── update-stand.bat
+└── artifacts/
+    ├── sufd-server-8.23.175.war
+    ├── sufd-server-libs-8.23.175.zip
+    ├── func-demo-8.23.175.zip
+    ├── jetty-template-8.23.175.zip
+    ├── create.sql
+    └── checksums.sha256
+```
+
+Вместо архива шаблона может использоваться каталог:
+
+```text
+artifacts/
+└── template/
+    ├── etc/
+    ├── lib/
+    ├── logs/
+    ├── modules/
+    ├── sufd.config/
+    ├── sql-migrations/
+    ├── webapps/
+    └── ...
+```
+
+---
+
+## Быстрый старт
+
+### Linux
+
+Подготовьте каталог, например:
+
+```text
+/opt/ufos/install/
+├── ufos-installer.jar
+├── init-stand.sh
+├── update-stand.sh
+└── artifacts/
+```
+
+Выдайте права на скрипты:
+
+```bash
+chmod +x init-stand.sh update-stand.sh
+```
+
+Первичная установка:
+
+```bash
 ./init-stand.sh \
   --stand-dir /opt/ufos/STAND \
   --artifacts-dir /opt/ufos/install/artifacts \
-  --jetty-template /opt/ufos/install/artifacts/jetty-template-12.1.10.zip \
-  --core-war /opt/ufos/install/artifacts/sufd-server-8.23.165.war \
-  --libs-zip /opt/ufos/install/artifacts/sufd-server-libs-8.23.165.zip \
-  --app-zip /opt/ufos/install/artifacts/func-demo.zip \
-  --init-sql /opt/ufos/install/artifacts/init-database.sql \
   --db-host localhost \
   --db-port 5432 \
   --db-name sufd \
   --db-user sufd \
-  --db-password secret \
-  --chown-user ufos
+  --db-password
 ```
 
-#### Обновление ядра и приклада ####
-```
-# Через jar
-java -jar ufos-installer.jar \
-  --mode update-core \
-  --stand-dir /opt/ufos/STAND \
-  --artifacts-dir /opt/ufos/install/artifacts \
-  --core-war /opt/ufos/install/artifacts/sufd-server-8.23.165.war \
-  --libs-zip /opt/ufos/install/artifacts/sufd-server-libs-8.23.165.zip \
-  --app-zip /opt/ufos/install/artifacts/func-demo.zip
+Обновление:
 
-# Через обёртку:
+```bash
 ./update-stand.sh \
   --stand-dir /opt/ufos/STAND \
-  --artifacts-dir /opt/ufos/install/artifacts \
-  --core-war /opt/ufos/install/artifacts/sufd-server-8.23.165.war \
-  --libs-zip /opt/ufos/install/artifacts/sufd-server-libs-8.23.165.zip \
-  --app-zip /opt/ufos/install/artifacts/func-demo.zip
+  --artifacts-dir /opt/ufos/install/artifacts
 ```
 
-#### Dry-run ####
+---
+
+### Windows
+
+Подготовьте каталог, например:
+
+```text
+C:\ufos\install\
+├── ufos-installer.jar
+├── init-stand.bat
+├── update-stand.bat
+└── artifacts\
 ```
-java -jar ufos-installer.jar \
-  --mode update-core \
+
+Первичная установка:
+
+```cmd
+init-stand.bat ^
+  --stand-dir "C:\ufos\STAND" ^
+  --artifacts-dir "C:\ufos\install\artifacts" ^
+  --db-host localhost ^
+  --db-port 5432 ^
+  --db-name sufd ^
+  --db-user sufd ^
+  --db-password
+```
+
+Обновление:
+
+```cmd
+update-stand.bat ^
+  --stand-dir "C:\ufos\STAND" ^
+  --artifacts-dir "C:\ufos\install\artifacts"
+```
+
+---
+
+## Подробная инструкция администратора
+
+### Шаг 1. Подготовьте артефакты
+
+Положите артефакты в один каталог, например `artifacts`.
+
+Обычно нужны:
+
+| Файл                                                 | Назначение              | Обязательность         |
+|------------------------------------------------------|-------------------------|------------------------|
+| `sufd-server-<version>.war`                          | ядро УФОС               | обязательно            |
+| `sufd-server-libs-<version>.zip`                     | библиотеки ядра         | обязательно            |
+| `jetty-template-<version>.zip` или папка `template/` | шаблон стенда           | обязательно для `init` |
+| `func-*.zip` или другой архив приклада               | приклад                 | опционально            |
+| `create.sql`                                         | первичное наполнение БД | опционально            |
+| `checksums.sha256`                                   | контрольные суммы       | рекомендуется          |
+
+---
+
+### Шаг 2. Проверьте имена файлов
+
+Инсталлятор автоматически ищет файлы по маскам.
+
+#### Ядро
+
+Ожидается один файл вида:
+
+```text
+sufd-server-8.23.175.war
+```
+
+Если таких файлов несколько, нужно указать конкретный:
+
+```bash
+--core-war /path/to/sufd-server-8.23.175.war
+```
+
+#### Библиотеки ядра
+
+Ожидается один файл вида:
+
+```text
+sufd-server-libs-8.23.175.zip
+```
+
+Если таких файлов несколько:
+
+```bash
+--libs-zip /path/to/sufd-server-libs-8.23.175.zip
+```
+
+#### Приклад
+
+Приклад ищется как любой `.zip`, который не является архивом библиотек и не похож на шаблон.
+
+Если архивов несколько, укажите явно:
+
+```bash
+--app-zip /path/to/func-demo-8.23.175.zip
+```
+
+Если архив приклада не найден, установка приклада будет пропущена.
+
+#### Шаблон стенда
+
+Шаблон может быть:
+
+- архивом, например:
+
+```text
+jetty-template-8.23.175.zip
+```
+
+- или каталогом:
+
+```text
+artifacts/template/
+```
+
+Если шаблонов несколько, укажите явно:
+
+```bash
+--jetty-template /path/to/jetty-template.zip
+```
+
+#### init SQL
+
+Если в каталоге артефактов есть один `.sql` файл, он будет использован автоматически.
+
+Если SQL-файлов несколько, укажите явно:
+
+```bash
+--init-sql /path/to/create.sql
+```
+
+Если SQL-файл не найден, первичное наполнение БД будет пропущено.
+
+---
+
+### Шаг 3. Подготовьте контрольные суммы
+
+Файл `checksums.sha256` должен лежать в каталоге артефактов.
+
+Формат:
+
+```text
+<SHA-256>  <имя файла>
+```
+
+Пример:
+
+```text
+5f0c8f8f8d6a8d6f8f8d6a8d6f8f8d6a8d6f8f8d6a8d6f8f8d6a8d6f8f8d6a8d  sufd-server-8.23.175.war
+9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b  sufd-server-libs-8.23.175.zip
+```
+
+Если файла `checksums.sha256` нет, проверка контрольных сумм будет пропущена.
+
+#### Генерация в Linux
+
+```bash
+cd artifacts
+
+sha256sum \
+  sufd-server-8.23.175.war \
+  sufd-server-libs-8.23.175.zip \
+  func-demo-8.23.175.zip \
+  jetty-template-8.23.175.zip \
+  create.sql > checksums.sha256
+```
+
+#### Генерация в PowerShell
+
+```powershell
+cd C:\ufos\install\artifacts
+
+Remove-Item checksums.sha256 -ErrorAction SilentlyContinue
+
+Get-ChildItem -File | Where-Object { $_.Name -ne "checksums.sha256" } | ForEach-Object {
+    $hash = Get-FileHash $_.FullName -Algorithm SHA256
+    "$($hash.Hash.ToLower())  $($_.Name)" | Add-Content checksums.sha256
+}
+```
+
+---
+
+### Шаг 4. Остановите стенд перед обновлением
+
+Инсталлятор не останавливает и не запускает стенд.
+
+Перед обновлением рекомендуется остановить УФОС, чтобы файлы не были заблокированы и обновление прошло консистентно.
+
+---
+
+### Шаг 5. Выберите режим
+
+#### Первичная установка
+
+Используется, если стенд ещё не существует.
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts
+```
+
+#### Обновление ядра и приклада
+
+Используется для уже существующего стенда.
+
+```bash
+./update-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts
+```
+
+---
+
+### Шаг 6. При необходимости используйте `--dry-run`
+
+Режим `--dry-run` показывает план действий, но не выполняет изменения.
+
+```bash
+./update-stand.sh \
   --stand-dir /opt/ufos/STAND \
   --artifacts-dir /opt/ufos/install/artifacts \
   --dry-run
 ```
+
+---
+
+## Параметры командной строки
+
+### Основные
+
+| Параметр                | Описание                                            | Обязательность                                        |
+|-------------------------|-----------------------------------------------------|-------------------------------------------------------|
+| `--mode`, `-m`          | режим: `init` или `update-core`                     | обязательно при запуске напрямую через jar            |
+| `--stand-dir`, `-s`     | путь к каталогу стенда                              | обязательно                                           |
+| `--artifacts-dir`, `-a` | путь к каталогу с артефактами                       | по умолчанию `./artifacts`                            |
+| `--backup-dir`, `-b`    | путь к каталогу бэкапов                             | по умолчанию `<родитель стенда>/backups/<имя стенда>` |
+| `--ufos-version`        | версия УФОС, если её нельзя определить из имени WAR | опционально                                           |
+| `--force`, `-f`         | разрешить перезапись существующего стенда           | опционально                                           |
+| `--dry-run`             | показать план без выполнения                        | опционально                                           |
+| `--verbose`, `-v`       | подробный вывод                                     | опционально                                           |
+| `--gui`                 | принудительно запустить GUI                         | опционально                                           |
+| `--cli`                 | принудительно запустить CLI                         | опционально                                           |
+| `-h`, `--help`          | справка                                             | опционально                                           |
+| `-V`, `--version`       | версия инсталлятора                                 | опционально                                           |
+
+> Скрипты-обёртки `init-stand.sh`, `update-stand.sh`, `init-stand.bat`, `update-stand.bat` уже передают нужный `--mode`, поэтому при их использовании параметр
+`--mode` указывать не нужно.
+
+---
+
+### Артефакты
+
+| Параметр           | Описание                           |
+|--------------------|------------------------------------|
+| `--core-war`       | путь к WAR-файлу ядра              |
+| `--libs-zip`       | путь к архиву библиотек            |
+| `--app-zip`        | путь к архиву приклада             |
+| `--jetty-template` | путь к архиву или каталогу шаблона |
+| `--init-sql`       | путь к init SQL-файлу              |
+
+Если параметр не указан, инсталлятор попытается найти артефакт автоматически в каталоге `--artifacts-dir`.
+
+---
+
+### Параметры БД
+
+| Параметр        | Описание                               | По умолчанию                            |
+|-----------------|----------------------------------------|-----------------------------------------|
+| `--db-url`      | полный JDBC URL                        | не задан                                |
+| `--db-host`     | хост БД                                | `localhost`                             |
+| `--db-port`     | порт БД                                | `5432`                                  |
+| `--db-name`     | имя БД                                 | `sufd`                                  |
+| `--db-user`     | пользователь БД                        | `sufd`                                  |
+| `--db-password` | пароль БД                              | интерактивно, если указать без значения |
+| `--skip-db`     | пропустить проверку и инициализацию БД | `false`                                 |
+
+Если указан `--db-url`, он имеет приоритет над `--db-host`, `--db-port`, `--db-name`.
+
+Пример:
+
+```bash
+--db-url jdbc:postgresql://db-host:5432/sufd
+```
+
+---
+
+### Дополнительные параметры
+
+| Параметр          | Описание                                                      |
+|-------------------|---------------------------------------------------------------|
+| `--chown-user`    | пользователь для `chown -R` после установки, только для Linux |
+| `--var KEY=VALUE` | дополнительная переменная для подстановки в конфиги           |
+
+Пример:
+
+```bash
+--var=SMTP_HOST=smtp.company.local
+--var=LDAP_URL=ldap://ldap.company.local:389
+```
+
+---
+
+## Сценарий 1: первичная установка
+
+Команда:
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --db-host localhost \
+  --db-port 5432 \
+  --db-name sufd \
+  --db-user sufd \
+  --db-password
+```
+
+Что делает инсталлятор:
+
+1. Проверяет Java и ОС.
+2. Проверяет каталог стенда.
+3. Ищет артефакты:
+    - шаблон;
+    - WAR ядра;
+    - архив библиотек;
+    - архив приклада;
+    - init SQL
+4. Проверяет контрольные суммы, если есть `checksums.sha256`.
+5. Проверяет доступность БД, если не указан `--skip-db`.
+6. Создаёт структуру стенда из шаблона.
+7. Подставляет переменные в файлы `etc/`.
+8. Копирует WAR ядра в `webapps/`.
+9. Распаковывает библиотеки в `lib/ext/`.
+10. Размещает приклад:
+    - `sufd.config/`
+    - `sql-migrations/`
+    - `version.txt`
+11. Выполняет init SQL, если не указан `--skip-db`.
+12. Применяет права доступа.
+13. Формирует итоговый отчёт.
+
+---
+
+### Установка в существующий непустой каталог
+
+Если каталог стенда уже существует и не пуст, инсталлятор по умолчанию выдаст ошибку.
+
+Чтобы принудительно удалить существующий стенд и установить заново, используйте:
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --force
+```
+
+> Используйте `--force` осторожно. Существующий каталог стенда будет удалён.
+
+---
+
+### Установка без проверки БД
+
+Если БД пока недоступна или вы хотите только разложить файлы:
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --skip-db
+```
+
+В этом случае:
+
+- проверка доступности БД не выполняется;
+- init SQL не выполняется.
+
+---
+
+## Сценарий 2: обновление ядра и приклада
+
+Команда:
+
+```bash
+./update-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts
+```
+
+Что делает инсталлятор:
+
+1. Проверяет окружение.
+2. Проверяет, что указанный каталог похож на стенд УФОС.
+3. Ищет артефакты:
+    - новый WAR;
+    - архив библиотек;
+    - архив приклада.
+4. Проверяет контрольные суммы, если есть `checksums.sha256`.
+5. Определяет текущую версию ядра по имени старого WAR.
+6. Создаёт частичный бэкап изменяемых частей.
+7. Удаляет старые `sufd-server*.war`.
+8. Копирует новый WAR.
+9. Очищает и заново распаковывает `lib/ext/`.
+10. Если задан архив приклада:
+    - очищает и обновляет `sufd.config/`;
+    - очищает и обновляет `sql-migrations/`;
+    - обновляет `version.txt`.
+11. Восстанавливает права доступа, если работает на Linux.
+12. Формирует итоговый отчёт.
+
+Если во время обновления возникает ошибка, инсталлятор предложит выполнить откат из бэкапа.
+
+---
+
+### Что изменяется при обновлении
+
+Во время `update-core` изменяются:
+
+```text
+webapps/sufd-server-*.war
+lib/ext/
+sufd.config/
+sql-migrations/
+version.txt
+```
+
+Не изменяются:
+
+```text
+etc/
+logs/
+components/
+```
+
+> Если нужно обновить только ядро без приклада, сделайте так, чтобы в каталоге артефактов не было архива, который может быть распознан как приклад,
+> либо используйте отдельную папку артефактов только с ядром и библиотеками.
+
+---
+
+## Бэкапы и откат
+
+### Где создаются бэкапы
+
+По умолчанию бэкапы создаются рядом со стендом:
+
+```text
+<родитель стенда>/backups/<имя стенда>/
+```
+
+Пример:
+
+```text
+/opt/ufos/STAND
+```
+
+Бэкапы:
+
+```text
+/opt/ufos/backups/STAND/
+```
+
+Внутри создаются каталоги вида:
+
+```text
+backup-20260617-153000-update-core
+```
+
+Можно задать собственный каталог:
+
+```bash
+--backup-dir /opt/ufos/custom-backups/STAND
+```
+
+---
+
+### Что попадает в бэкап при обновлении
+
+Для сценария `update-core` создаётся частичный бэкап только изменяемых частей.
+
+В список затронутых путей входят:
+
+- старые `sufd-server*.war`;
+- новый `sufd-server-<version>.war`;
+- `lib/ext`;
+- `sufd.config`, если обновляется приклад;
+- `sql-migrations`, если обновляется приклад;
+- `version.txt`, если он обновляется или уже существует.
+
+Это нужно, чтобы при откате можно было не только восстановить старые файлы, но и удалить новые, которые были созданы во время обновления.
+
+---
+
+### Откат при ошибке
+
+Если во время обновления происходит ошибка, инсталлятор выводит сообщение и спрашивает:
+
+```text
+Выполнить откат из бэкапа?
+```
+
+В CLI нужно ответить:
+
+```text
+y
+```
+
+или:
+
+```text
+yes
+```
+
+или:
+
+```text
+да
+```
+
+В GUI появится диалог подтверждения.
+
+Если отказаться от отката, стенд останется в том состоянии, до которого успело дойти обновление.
+
+---
+
+### Важные ограничения отката
+
+- Откат восстанавливает только файловую часть стенда.
+- Откат не выполняет автоматический откат изменений в базе данных.
+- Если откат завершился с ошибкой, используйте бэкап вручную.
+
+---
+
+## Логи и отчёты
+
+### Лог инсталлятора
+
+Файл лога создаётся в формате:
+
+```text
+installer-YYYYMMDD-HHMMSS.log
+```
+
+При запуске через CLI инсталлятор старается создать лог рядом с расположением `ufos-installer.jar`.
+
+При запуске через GUI файл лога создаётся в текущей рабочей директории.
+
+---
+
+### Итоговый отчёт
+
+После завершения сценария формируется текстовый отчёт:
+
+```text
+installer-report-YYYYMMDD-HHMMSS.txt
+```
+
+Отчёт содержит:
+
+- дату и время начала;
+- дату и время окончания;
+- сценарий;
+- путь к стенду;
+- версии;
+- использованные артефакты;
+- путь к бэкапу;
+- список изменений;
+- статус отката, если он был.
+
+---
+
+## Примеры команд
+
+### Запуск напрямую через jar
+
+Проверка версии:
+
+```bash
+java -jar ufos-installer.jar --version
+```
+
+Справка:
+
+```bash
+java -jar ufos-installer.jar --help
+```
+
+Запуск в режиме первичной установки:
+
+```bash
+java -jar ufos-installer.jar \
+  --mode init \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --db-host localhost \
+  --db-name sufd \
+  --db-user sufd \
+  --db-password
+```
+
+Запуск в режиме обновления:
+
+```bash
+java -jar ufos-installer.jar \
+  --mode update-core \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts
+```
+
+---
+
+### Первичная установка с явными артефактами
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --jetty-template /opt/ufos/install/artifacts/jetty-template-8.23.175.zip \
+  --core-war /opt/ufos/install/artifacts/sufd-server-8.23.175.war \
+  --libs-zip /opt/ufos/install/artifacts/sufd-server-libs-8.23.175.zip \
+  --app-zip /opt/ufos/install/artifacts/func-demo-8.23.175.zip \
+  --init-sql /opt/ufos/install/artifacts/create.sql \
+  --db-host localhost \
+  --db-name sufd \
+  --db-user sufd \
+  --db-password
+```
+
+---
+
+### Обновление только ядра и библиотек
+
+Если нужно обновить только ядро и библиотеки, не кладите архив приклада в каталог артефактов.
+
+```bash
+./update-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts-core-only
+```
+
+Где, например:
+
+```text
+artifacts-core-only/
+├── sufd-server-8.23.166.war
+└── sufd-server-libs-8.23.166.zip
+```
+
+---
+
+### Первичная установка без БД
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --skip-db
+```
+
+---
+
+### Использование полного JDBC URL
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --db-url jdbc:postgresql://db-host:5432/sufd \
+  --db-user sufd \
+  --db-password
+```
+
+---
+
+### Подстановка дополнительных переменных
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --db-host db-host \
+  --db-name sufd \
+  --db-user sufd \
+  --db-password \
+  --var=SMTP_HOST=smtp.company.local \
+  --var=LDAP_URL=ldap://ldap.company.local:389
+```
+
+Переменные можно использовать в шаблонах конфигураций в каталоге `etc/` в виде:
+
+```properties
+loremIpsum=${SMTP_HOST}
+```
+
+или:
+
+```properties
+loremIpsum=$[SMTP_HOST]
+```
+
+---
+
+## Документация по коду
+
+Ниже кратко описана структура проекта.
+
+### Точка входа
+
+`ru.otr.ufos.installer.UfosInstaller`
+
+Отвечает за:
+
+- выбор режима запуска: CLI или GUI;
+- парсинг аргументов;
+- инициализацию логгера;
+- создание контекста;
+- запуск выбранного сценария;
+- обработку ошибок и кодов возврата.
+
+---
+
+### Основные пакеты
+
+| Пакет                              | Назначение                                                             |
+|------------------------------------|------------------------------------------------------------------------|
+| `ru.otr.ufos.installer.cli`        | парсинг аргументов командной строки                                    |
+| `ru.otr.ufos.installer.core`       | сценарии, контекст, пользовательские подтверждения, проверки окружения |
+| `ru.otr.ufos.installer.scenarios`  | сценарии установки и обновления                                        |
+| `ru.otr.ufos.installer.artifacts`  | поиск артефактов и проверка контрольных сумм                           |
+| `ru.otr.ufos.installer.filesystem` | файловые операции, архивы, права доступа                               |
+| `ru.otr.ufos.installer.backup`     | бэкапы и откат                                                         |
+| `ru.otr.ufos.installer.config`     | подстановка переменных в конфигурационные файлы                        |
+| `ru.otr.ufos.installer.db`         | работа с БД и выполнение SQL                                           |
+| `ru.otr.ufos.installer.logging`    | логирование                                                            |
+| `ru.otr.ufos.installer.report`     | итоговый отчёт                                                         |
+| `ru.otr.ufos.installer.gui`        | графический интерфейс                                                  |
+
+---
+
+### Ключевые классы
+
+| Класс                  | Назначение                                        |
+|------------------------|---------------------------------------------------|
+| `CliParser`            | аргументы командной строки                        |
+| `Scenario`             | поддерживаемые режимы: `init`, `update-core`      |
+| `InstallerContext`     | параметры текущего запуска                        |
+| `UserPrompt`           | запрос подтверждения у пользователя               |
+| `EnvironmentValidator` | проверка Java, ОС и доступности каталогов         |
+| `InitScenario`         | первичная установка                               |
+| `UpdateCoreScenario`   | обновление ядра и приклада                        |
+| `ScenariosUtils`       | запуск сценариев, общий код установки приклада    |
+| `ArtifactResolver`     | поиск артефактов                                  |
+| `ChecksumValidator`    | проверка SHA-256                                  |
+| `FileManager`          | копирование, удаление, очистка файлов и каталогов |
+| `ArchiveHelper`        | умная распаковка архивов                          |
+| `PermissionsManager`   | права доступа и `chown`                           |
+| `BackupManager`        | создание бэкапов                                  |
+| `RollbackManager`      | откат из бэкапа                                   |
+| `ConfigProcessor`      | подстановка переменных в `etc/`                   |
+| `DatabaseInitializer`  | проверка БД и выполнение `create.sql`             |
+| `SqlScriptSplitter`    | разбиение SQL-скрипта на операторы                |
+| `InstallerLogger`      | общий логгер                                      |
+| `ReportGenerator`      | итоговый отчёт                                    |
+| `InstallerFrame`       | GUI                                               |
+
+---
+
+## Тесты
+
+В проекте есть автотесты сценариев.
+
+Запуск тестов:
+
+```bash
+mvn test
+```
+
+Основные тестовые классы:
+
+- `InitScenarioH2Test`
+- `InitScenarioAdditionalTest`
+- `UpdateCoreScenarioTest`
+- `TestArtifactUtils`
+
+Для быстрых тестов базы данных используется H2 в режиме совместимости с PostgreSQL.
+
+> H2 подходит для проверки логики инсталлятора, но финальная проверка реальных боевых скриптов должна выполняться на PostgreSQL.
+
+---
+
+## Устранение неполадок
+
+### Не найден `ufos-installer.jar`
+
+Если скрипт-обёртка не находит jar:
+
+1. Положите `ufos-installer.jar` рядом со скриптом.
+2. Или задайте переменную окружения:
+
+Linux:
+
+```bash
+export UFOS_INSTALLER_JAR=/opt/ufos/install/ufos-installer.jar
+```
+
+Windows:
+
+```cmd
+set UFOS_INSTALLER_JAR=C:\ufos\install\ufos-installer.jar
+```
+
+---
+
+### Не найден шаблон стенда
+
+Проверьте, что в каталоге артефактов есть один из вариантов:
+
+```text
+jetty-template-*.zip
+template*.zip
+template/
+```
+
+Либо укажите шаблон явно:
+
+```bash
+--jetty-template /path/to/template.zip
+```
+
+---
+
+### Найдено несколько подходящих архивов
+
+Если инсталлятор нашёл несколько подходящих файлов, укажите нужный явно:
+
+```bash
+--core-war /path/to/sufd-server-8.23.175.war
+--libs-zip /path/to/sufd-server-libs-8.23.175.zip
+--app-zip /path/to/func-app.zip
+--jetty-template /path/to/jetty-template.zip
+--init-sql /path/to/create.sql
+```
+
+---
+
+### Каталог стенда уже существует и не пуст
+
+Для первичной установки это защита от случайной перезаписи.
+
+Если установка в существующий каталог действительно нужна:
+
+```bash
+./init-stand.sh \
+  --stand-dir /opt/ufos/STAND \
+  --artifacts-dir /opt/ufos/install/artifacts \
+  --force
+```
+
+---
+
+### Ошибка подключения к БД
+
+Проверьте:
+
+- хост;
+- порт;
+- имя базы;
+- пользователя;
+- пароль;
+- доступность сервера БД;
+- правила `pg_hba.conf`;
+- сетевые доступы.
+
+Для диагностики можно временно выполнить проверку через `psql`:
+
+```bash
+psql -h localhost -p 5432 -U sufd -d sufd
+```
+
+---
+
+### Ошибка выполнения init SQL
+
+Инсталлятор выводит:
+
+- номер оператора;
+- текст оператора;
+- сообщение базы данных.
+
+Проверьте файл `create.sql` на:
+
+- синтаксические ошибки;
+- несоответствие версии БД;
+- отсутствие нужных объектов;
+- отсутствие прав у пользователя.
+
+---
+
+### Ошибка распаковки архива
+
+Если архив повреждён, инсталлятор выдаст ошибку.
+
+Проверьте:
+
+- целостность архива;
+- контрольные суммы;
+- что файл действительно является ZIP-архивом.
+
+---
+
+### Обновление прошло частично, откат не выполнен
+
+Если при запросе отката был дан отрицательный ответ, стенд может остаться в промежуточном состоянии.
+
+В этом случае восстановите файлы из каталога бэкапа вручную.
+
+Путь к бэкапу указывается в логах и отчёте.
+
+---
+
+## Важные замечания
+
+- Инсталлятор не останавливает и не запускает стенд.
+- Инсталлятор не создаёт базу данных и пользователя БД.
+- Инсталлятор не выполняет автоматический откат изменений в БД.
+- При обновлении рекомендуется предварительно останавливать стенд.
+- Бэкапы не удаляются автоматически.
+- Сценарий обновления с пересозданием Jetty не поддерживается.
+
+---
+
