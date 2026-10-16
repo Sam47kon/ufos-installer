@@ -10,11 +10,10 @@ rem Использование:
 rem   init-stand.bat --stand-dir "C:\ufos\STAND" --artifacts-dir "C:\ufos\install\artifacts"
 rem
 rem Скрипт ищет ufos-installer.jar в следующих местах:
-rem   1. переменная окружения UFOS_INSTALLER_JAR;
-rem   2. каталог, где лежит сам скрипт;
-rem   3. родительский каталог;
-rem   4. каталог ..\..\..\..\target, удобно при запуске из исходников;
-rem   5. текущий рабочий каталог.
+rem   1. каталог, где лежит сам скрипт;
+rem   2. родительский каталог;
+rem   3. каталог ..\..\..\..\target, удобно при запуске из исходников;
+rem   4. текущий рабочий каталог.
 rem
 
 set "JAR="
@@ -22,16 +21,6 @@ set "JAR="
 where java >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] Java не найдена в PATH. Требуется Java 17+.
-    exit /b 1
-)
-
-if defined UFOS_INSTALLER_JAR (
-    if exist "%UFOS_INSTALLER_JAR%" (
-        set "JAR=%UFOS_INSTALLER_JAR%"
-        goto run
-    )
-
-    echo [ERROR] UFOS_INSTALLER_JAR указывает на несуществующий файл: %UFOS_INSTALLER_JAR%
     exit /b 1
 )
 
@@ -48,7 +37,7 @@ call :find_jar "%CD%"
 if defined JAR goto run
 
 echo [ERROR] Не найден ufos-installer.jar.
-echo Положите ufos-installer.jar рядом со скриптом или задайте переменную окружения UFOS_INSTALLER_JAR.
+echo Положите ufos-installer.jar рядом со скриптом или в родительский каталог.
 exit /b 1
 
 :run

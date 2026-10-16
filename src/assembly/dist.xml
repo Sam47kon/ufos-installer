@@ -1,0 +1,47 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.1.1"
+		  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		  xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.1.1
+                              http://maven.apache.org/xsd/assembly-2.1.1.xsd">
+
+	<id>dist</id>
+
+	<formats>
+		<format>zip</format>
+	</formats>
+
+	<includeBaseDirectory>true</includeBaseDirectory>
+	<baseDirectory>ufos-installer</baseDirectory>
+
+	<files>
+		<!-- Fat jar -->
+		<file>
+			<source>${project.build.directory}/${project.build.finalName}.jar</source>
+			<outputDirectory>.</outputDirectory>
+			<destName>ufos-installer.jar</destName>
+		</file>
+	</files>
+
+	<fileSets>
+		<!-- Linux wrappers -->
+		<fileSet>
+			<directory>${project.basedir}/src/dist/linux-wrapper</directory>
+			<outputDirectory>linux-wrapper</outputDirectory>
+			<includes>
+				<include>*.sh</include>
+			</includes>
+			<fileMode>0755</fileMode>
+			<lineEnding>unix</lineEnding>
+		</fileSet>
+
+		<!-- Windows wrappers -->
+		<fileSet>
+			<directory>${project.basedir}/src/dist/windows-wrapper</directory>
+			<outputDirectory>windows-wrapper</outputDirectory>
+			<includes>
+				<include>*.bat</include>
+			</includes>
+			<lineEnding>dos</lineEnding>
+		</fileSet>
+	</fileSets>
+
+</assembly>
