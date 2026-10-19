@@ -68,6 +68,13 @@ public class InstallerContext {
 	private boolean dryRun;
 	// "--verbose"
 	private boolean verbose;
+
+	/**
+	 * "--usePsql"
+	 * Выполнять init SQL через psql (true) или через JDBC (false).
+	 * По умолчанию true, так как боевой create.sql содержит {@code COPY ... FROM stdin;}
+	 */
+	private boolean usePsql = true;
 	// endregion Поля
 
 	public InstallerContext(Scenario scenario, UserPrompt userPrompt) {

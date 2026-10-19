@@ -152,6 +152,7 @@ public class UfosInstaller {
 		context.setForce(cli.isForce());
 		context.setDryRun(cli.isDryRun());
 		context.setVerbose(cli.isVerbose());
+		context.setUsePsql(cli.isUsePsql());
 	}
 
 	private static Path createLogFile() {

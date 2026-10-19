@@ -41,6 +41,7 @@ public class InstallerFrame extends JFrame {
 	private final JTextField chownUserField;
 
 	private final JCheckBox skipDbCheckBox;
+	private final JCheckBox usePsqlCheckBox;
 	private final JCheckBox forceCheckBox;
 	private final JCheckBox verboseCheckBox;
 
@@ -124,10 +125,16 @@ public class InstallerFrame extends JFrame {
 		JPanel checkBoxPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
 
 		skipDbCheckBox = new JCheckBox("Пропустить БД");
+		usePsqlCheckBox = new JCheckBox("Выполнять init SQL через psql", true);
+		usePsqlCheckBox.setToolTipText(
+				"<html>psql требуется для дампов с 'COPY ... FROM stdin;'.<br>" +
+				"Снимите флажок для выполнения через JDBC (например, для H2).</html>"
+		);
 		forceCheckBox = new JCheckBox("--force");
 		verboseCheckBox = new JCheckBox("Подробный вывод");
 
 		checkBoxPanel.add(skipDbCheckBox);
+		checkBoxPanel.add(usePsqlCheckBox);
 		checkBoxPanel.add(forceCheckBox);
 		checkBoxPanel.add(verboseCheckBox);
 
@@ -423,6 +430,7 @@ public class InstallerFrame extends JFrame {
 		context.setChownUser(emptyToNull(chownUserField.getText()));
 
 		context.setSkipDb(skipDbCheckBox.isSelected());
+		context.setUsePsql(usePsqlCheckBox.isSelected());
 		context.setForce(forceCheckBox.isSelected());
 		context.setVerbose(verboseCheckBox.isSelected());
 

@@ -1,6 +1,7 @@
 package ru.otr.ufos.installer.scenarios;
 
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,18 +12,15 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import ru.otr.ufos.installer.core.InstallerContext;
 import ru.otr.ufos.installer.core.Scenario;
+import ru.otr.ufos.installer.db.DatabaseInitializer;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static ru.otr.ufos.installer.scenarios.TestArtifactUtils.*;
 
 /**
@@ -75,30 +73,10 @@ class InitScenarioPostgresTest {
 	@Test
 	@DisplayName("Сценарий 1: полная установка на реальном PostgreSQL")
 	void initScenarioShouldCreateStandOnRealPostgres() throws Exception {
-		Path template = createTemplate(tempDir);
-		Path war = createCoreWar(artifactsDir, "1.2.3");
-		Path libs = createLibsZip(artifactsDir, "1.2.3", "lib.txt", "lib");
-		Path app = createAppZip(artifactsDir, "1.0.0");
-		Path initSql = createPostgresInitSql(artifactsDir);
-
-		InstallerContext context = new InstallerContext(Scenario.INIT, question -> true);
-
-		context.setStandDir(standDir);
-		context.setArtifactsDir(artifactsDir);
-		context.setBackupDir(tempDir.resolve("backups"));
-
-		context.setJettyTemplate(template);
-		context.setCoreWar(war);
-		context.setLibsZip(libs);
-		context.setAppZip(app);
-		context.setInitSql(initSql);
-
-		context.setDbUrl(postgres.getJdbcUrl());
-		context.setDbHost(postgres.getHost());
-		context.setDbPort(String.valueOf(postgres.getMappedPort(5432)));
-		context.setDbName(DB_NAME);
-		context.setDbUser(DB_USER);
-		context.setDbPassword(DB_PASSWORD);
+		InstallerContext context = createContext();
+		context.setInitSql(createPostgresInitSql(artifactsDir));
+		// Проверка работы SqlScriptSplitter
+		context.setUsePsql(false);
 
 		context.setCustomVariables(Map.of("CUSTOM_TEST_VAR", "custom-value"));
 
@@ -268,5 +246,146 @@ class InitScenarioPostgresTest {
 				""";
 
 		return writeFile(artifactsDir.resolve("init-postgres.sql"), sql);
+	}
+
+	@Test
+	@DisplayName("Сценарий 1: init SQL с COPY через psql на реальном PostgreSQL")
+	void initScenarioShouldExecuteCopyDumpViaPsql() throws Exception {
+		Assumptions.assumeTrue(
+				DatabaseInitializer.isPsqlAvailable(),
+				"psql недоступен в PATH - тест psql-ветки пропускается"
+		);
+
+		InstallerContext context = createContext();
+		context.setInitSql(createCopyBasedInitSql(artifactsDir));
+		// идём через psql
+		context.setUsePsql(true);
+
+		new InitScenario().execute(context);
+
+		// Проверяем, что COPY-блок реально пролит в БД
+		try (
+				Connection connection = DriverManager.getConnection(
+						postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()
+				);
+				Statement statement = connection.createStatement()
+		) {
+			try (ResultSet rs = statement.executeQuery("""
+							SELECT *
+							FROM information_schema.tables
+							WHERE table_schema = current_schema()
+							  AND table_type = 'BASE TABLE'
+					""")) {
+				StringBuilder sb = new StringBuilder();
+				while (rs.next()) {
+					ResultSetMetaData md = rs.getMetaData();
+					sb.append("Строка:");
+					for (int i = 0; i < md.getColumnCount(); i++) {
+						sb.append("\n\t").append(md.getColumnName(i + 1)).append('=').append(rs.getString(i + 1));
+					}
+					sb.append('\n');
+				}
+				assertEquals("""
+								Строка:
+									table_catalog=ufos_test
+									table_schema=public
+									table_name=test_container_ready
+									table_type=BASE TABLE
+									self_referencing_column_name=null
+									reference_generation=null
+									user_defined_type_catalog=null
+									user_defined_type_schema=null
+									user_defined_type_name=null
+									is_insertable_into=YES
+									is_typed=NO
+									commit_action=null
+								Строка:
+									table_catalog=ufos_test
+									table_schema=public
+									table_name=installer_psql_test
+									table_type=BASE TABLE
+									self_referencing_column_name=null
+									reference_generation=null
+									user_defined_type_catalog=null
+									user_defined_type_schema=null
+									user_defined_type_name=null
+									is_insertable_into=YES
+									is_typed=NO
+									commit_action=null
+								""",
+						sb.toString()
+				);
+			}
+
+			try (ResultSet rs = statement.executeQuery(
+					"SELECT name FROM installer_psql_test WHERE id = 1"
+			)) {
+				assertTrue(rs.next(), "Данные из COPY-блока должны быть загружены");
+				assertEquals("installed", rs.getString("name"));
+			}
+
+			try (ResultSet rs = statement.executeQuery(
+					"SELECT name FROM installer_psql_test WHERE id = 2"
+			)) {
+				assertTrue(rs.next(), "Строка с ';' в данных должна быть загружена корректно");
+				assertEquals("value;with;semicolons", rs.getString("name"));
+			}
+
+			try (ResultSet rs = statement.executeQuery(
+					"SELECT note FROM installer_psql_test WHERE id = 3"
+			)) {
+				assertTrue(rs.next());
+				assertNull(rs.getString("note"), "\\N должен превратиться в SQL NULL");
+			}
+		}
+	}
+
+	/**
+	 * Мини-дамп в формате pg_dump: COPY ... FROM stdin + \. + \N.
+	 * Через JDBC такой скрипт невыполним — именно поэтому нужен psql.
+	 */
+	@SuppressWarnings("SpellCheckingInspection")
+	private @NotNull Path createCopyBasedInitSql(@NotNull Path artifactsDir) throws Exception {
+		String sql = """
+				CREATE TABLE IF NOT EXISTS installer_psql_test (
+				    id INT PRIMARY KEY,
+				    name VARCHAR(100),
+				    note VARCHAR(100)
+				);
+				
+				COPY installer_psql_test (id, name, note) FROM stdin;
+				1\tinstalled\tvia psql
+				2\tvalue;with;semicolons\tok
+				3\tnull-note\t\\N
+				\\.
+				""";
+
+		return writeFile(artifactsDir.resolve("init-copy.sql"), sql);
+	}
+
+	private @NotNull InstallerContext createContext() throws Exception {
+		Path template = createTemplate(tempDir);
+		Path war = createCoreWar(artifactsDir, "1.2.3");
+		Path libs = createLibsZip(artifactsDir, "1.2.3", "lib.txt", "lib");
+		Path app = createAppZip(artifactsDir, "1.0.0");
+
+		InstallerContext context = new InstallerContext(Scenario.INIT, question -> true);
+
+		context.setStandDir(standDir);
+		context.setArtifactsDir(artifactsDir);
+		context.setBackupDir(tempDir.resolve("backups"));
+
+		context.setJettyTemplate(template);
+		context.setCoreWar(war);
+		context.setLibsZip(libs);
+		context.setAppZip(app);
+
+		context.setDbUrl(postgres.getJdbcUrl());
+		context.setDbHost(postgres.getHost());
+		context.setDbPort(String.valueOf(postgres.getMappedPort(5432)));
+		context.setDbName(DB_NAME);
+		context.setDbUser(DB_USER);
+		context.setDbPassword(DB_PASSWORD);
+		return context;
 	}
 }

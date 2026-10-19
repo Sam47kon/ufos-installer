@@ -177,6 +177,14 @@ public class CliParser implements Runnable {
 	)
 	private boolean cli;
 
+	@Option(
+			names = {"--use-psql"},
+			negatable = true,
+			defaultValue = "true",
+			description = "Выполнять init SQL через psql (по умолчанию) или через JDBC (--no-use-psql)"
+	)
+	private boolean usePsql;
+
 	@Override
 	public void run() {
 		// Класс используется только для парсинга аргументов.

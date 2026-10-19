@@ -224,6 +224,8 @@ final class TestArtifactUtils {
 		context.setDbUser("sa");
 		context.setDbPassword("");
 		context.setSkipDb(skipDb);
+		// H2 не поддерживает COPY, psql в тестах не нужен
+		context.setUsePsql(false);
 
 		context.setCustomVariables(Map.of("CUSTOM_TEST_VAR", "custom-value"));
 		return context;

@@ -6,12 +6,18 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.*;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static ru.otr.ufos.installer.logging.InstallerLogger.LINE_SEPARATOR;
 import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
@@ -25,6 +31,7 @@ import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
 @SuppressWarnings("SqlNoDataSourceInspection")
 @UtilityClass
 public class DatabaseInitializer {
+	private static final Pattern JDBC_PG_URL_PATTERN = Pattern.compile("jdbc:postgresql://([^/:?]+)(?::(\\d+))?/([^?]+)(?:\\?.*)?", Pattern.CASE_INSENSITIVE);
 
 	public static void checkConnection(@Nullable String dbUrl, String host, String port, String dbName, String user, String password) {
 		LOGGER.step("Проверка доступности БД");
@@ -40,8 +47,7 @@ public class DatabaseInitializer {
 		}
 	}
 
-	public static void logTableCount(@Nullable String dbUrl,
-									 String host, String port, String dbName, String user, String password) {
+	public static void logTableCount(@Nullable String dbUrl, String host, String port, String dbName, String user, String password) {
 		String url = resolveJdbcUrl(dbUrl, host, port, dbName);
 		String sql = """
 				SELECT COUNT(*)
@@ -66,7 +72,104 @@ public class DatabaseInitializer {
 		}
 	}
 
-	public static void executeSqlFile(@NotNull Path sqlFile, String dbUrl, String host, String port, String dbName, String user, String password) throws IOException {
+	/**
+	 * Единая точка входа выполнения init-скрипта:
+	 * - usePsql = true  -> psql -f (поддерживает COPY ... FROM stdin)
+	 * - usePsql = false -> JDBC + SqlScriptSplitter (для H2 и простых SQL)
+	 */
+	public static void executeInitSql(boolean usePsql, @NotNull Path sqlFile, @Nullable String dbUrl, String host, String port, String dbName, String user, String password) throws IOException {
+		if (usePsql) {
+			executeSqlFileViaPsql(sqlFile, dbUrl, host, port, dbName, user, password);
+		} else {
+			executeSqlFile(sqlFile, dbUrl, host, port, dbName, user, password);
+		}
+	}
+
+	public static @NotNull String resolveJdbcUrl(@Nullable String dbUrl, String host, String port, String dbName) {
+		if (StringUtils.isNotBlank(dbUrl)) {
+			return dbUrl;
+		}
+		requireNonBlank(host, port, dbName);
+		return buildJdbcPgUrl(host, port, dbName);
+	}
+
+	/**
+	 * Проверка, что psql доступен в PATH.
+	 * Используется для ранней проверки окружения и для тестов (Assumptions).
+	 */
+	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
+	public static boolean isPsqlAvailable() {
+		try {
+			Process process = new ProcessBuilder("psql", "--version")
+					.redirectErrorStream(true)
+					.start();
+
+			if (!process.waitFor(10, TimeUnit.SECONDS)) {
+				process.destroyForcibly();
+				return false;
+			}
+			return process.exitValue() == 0;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
+	private static void executeSqlFileViaPsql(@NotNull Path sqlFile, @Nullable String dbUrl, String host, String port, String dbName, String user, String password) throws IOException {
+		LOGGER.step("Выполнение init SQL через psql: " + sqlFile.getFileName());
+
+		if (!isPsqlAvailable()) {
+			throw new DataBaseException(
+					"Утилита psql не найдена в PATH. Установите PostgreSQL Client " +
+					"или используйте JDBC-режим (--no-use-psql). " +
+					"Обратите внимание: JDBC-режим не поддерживает COPY ... FROM stdin."
+			);
+		}
+
+		DbEndpoint endpoint = resolveEndpoint(dbUrl, host, port, dbName);
+
+		ProcessBuilder pb = new ProcessBuilder(
+				"psql",
+				"-h", endpoint.host(),
+				"-p", endpoint.port(),
+				"-U", user,
+				"-d", endpoint.dbName(),
+				"-f", sqlFile.toAbsolutePath().toString(),
+				"-v", "ON_ERROR_STOP=1",
+				"--no-psqlrc"
+		);
+
+		if (password != null) {
+			// Передаём пароль через переменную окружения
+			pb.environment().put("PGPASSWORD", password);
+		}
+		pb.redirectErrorStream(true);
+
+		Process process = pb.start();
+
+		try (BufferedReader reader = new BufferedReader(
+				new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				LOGGER.info("[psql] " + line);
+			}
+		}
+
+		int exitCode;
+		try {
+			exitCode = process.waitFor();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new DataBaseException("Выполнение psql прервано", e);
+		}
+
+		if (exitCode != 0) {
+			throw new DataBaseException("psql завершился с ошибкой, код: " + exitCode);
+		}
+
+		LOGGER.info("Init SQL выполнен успешно через psql");
+	}
+
+	private static void executeSqlFile(@NotNull Path sqlFile, String dbUrl, String host, String port, String dbName, String user, String password) throws IOException {
 		LOGGER.step("Выполнение init SQL: " + sqlFile.getFileName());
 		String script = Files.readString(sqlFile);
 		List<String> statements = SqlScriptSplitter.split(script);
@@ -99,14 +202,6 @@ public class DatabaseInitializer {
 		LOGGER.info("Init SQL выполнен успешно");
 	}
 
-	public static @NotNull String resolveJdbcUrl(@Nullable String dbUrl, String host, String port, String dbName) {
-		if (StringUtils.isNotBlank(dbUrl)) {
-			return dbUrl;
-		}
-		requireNonBlank(host, port, dbName);
-		return buildJdbcPgUrl(host, port, dbName);
-	}
-
 	private static void requireNonBlank(String @NotNull ... args) {
 		for (String arg : args) {
 			if (StringUtils.isBlank(arg)) {
@@ -128,5 +223,34 @@ public class DatabaseInitializer {
 	@Contract(pure = true)
 	private static @NotNull String buildJdbcPgUrl(String host, String port, String dbName) {
 		return "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
+	}
+
+	/**
+	 * Резолвит хост/порт/имя БД.
+	 * Если задан dbUrl — параметры извлекаются из него.
+	 */
+	private static @NotNull DbEndpoint resolveEndpoint(@Nullable String dbUrl, String host, String port, String dbName) {
+		if (StringUtils.isNotBlank(dbUrl)) {
+			Matcher matcher = JDBC_PG_URL_PATTERN.matcher(dbUrl);
+
+			if (!matcher.find()) {
+				throw new DataBaseException(
+						"Не удалось разобрать JDBC URL для запуска psql: " + dbUrl +
+						". Ожидается формат jdbc:postgresql://host:port/dbname"
+				);
+			}
+
+			String parsedHost = matcher.group(1);
+			String parsedPort = StringUtils.defaultIfBlank(matcher.group(2), "5432");
+			String parsedDb = matcher.group(3);
+
+			return new DbEndpoint(parsedHost, parsedPort, parsedDb);
+		}
+
+		requireNonBlank(host, port, dbName);
+		return new DbEndpoint(host, port, dbName);
+	}
+
+	private record DbEndpoint(String host, String port, String dbName) {
 	}
 }

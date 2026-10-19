@@ -66,6 +66,13 @@ public class InitScenario implements ScenarioExecutor {
 		if (!skipDb) {
 			DatabaseInitializer.checkConnection(dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
 			DatabaseInitializer.logTableCount(dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
+
+			if (context.isUsePsql() && initSql != null && !DatabaseInitializer.isPsqlAvailable()) {
+				throw new IllegalStateException(
+						"Утилита psql не найдена в PATH. Установите PostgreSQL Client или используйте JDBC-режим (--no-use-psql). " +
+						"Обратите внимание: JDBC-режим не поддерживает 'COPY ... FROM stdin'"
+				);
+			}
 		} else {
 			LOGGER.warn("Проверка БД пропущена (--skip-db)");
 		}
@@ -134,8 +141,11 @@ public class InitScenario implements ScenarioExecutor {
 		// Init SQL
 		if (!skipDb) {
 			if (initSql != null) {
-				DatabaseInitializer.executeSqlFile(initSql, dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
-				context.addChange("Выполнен init SQL: " + initSql.getFileName());
+				DatabaseInitializer.executeInitSql(
+						context.isUsePsql(), initSql, dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword
+				);
+				context.addChange("Выполнен init SQL (" +
+								  (context.isUsePsql() ? "psql" : "JDBC") + "): " + initSql.getFileName());
 			} else {
 				LOGGER.warn("Init SQL не найден. Инициализация БД пропущена.");
 			}
@@ -157,7 +167,7 @@ public class InitScenario implements ScenarioExecutor {
 		context.addReport("Архив библиотек", libsZip.getFileName().toString());
 		context.addReport("Архив приклада", null == appZip ? "Установка приклада пропущена" : appZip.getFileName().toString());
 		context.addReport("Шаблон", templateSource.toString());
-		context.addReport("Init SQL", initSql == null ? "не выполнен" : initSql.getFileName().toString());
+		context.addReport("Init SQL", initSql == null ? "не выполнен" : initSql.getFileName() + (skipDb ? " (пропущено)" : " (" + (context.isUsePsql() ? "psql" : "JDBC") + ")"));
 		context.addReport("БД", dbUser + "@" + dbHost + ":" + dbPort + "/" + dbName);
 		ReportGenerator.printReport(context);
 	}

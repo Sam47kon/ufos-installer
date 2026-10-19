@@ -13,7 +13,6 @@ import ru.otr.ufos.installer.core.Scenario;
 import ru.otr.ufos.installer.filesystem.ArchiveHelper;
 import ru.otr.ufos.installer.logging.InstallerLogger;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -187,7 +186,7 @@ class UpdateCoreScenarioTest {
 	}
 
 	@Test
-	@DisplayName("Проверка, что архив битый")
+	@DisplayName("Сценарий 2: Проверка, что архив битый")
 	void brokenLibsZipShouldFailExtraction() throws Exception {
 		InstallerLogger.init(tempDir.resolve("broken-zip-test.log"), true);
 
@@ -223,12 +222,13 @@ class UpdateCoreScenarioTest {
 		);
 
 		assertEquals(ZipException.class, e.getClass());
+		//noinspection SpellCheckingInspection
 		assertEquals(
 				"invalid entry CRC (expected 0xdeadbeef but got 0x5138dfcd)",
 				e.getMessage()
 		);
 
-		// WAR должен быть откатен
+		// WAR должен быть откачен
 		assertTrue(
 				Files.exists(standDir.resolve("webapps/sufd-server-1.0.0.war")),
 				"Старый WAR должен быть восстановлен после отката"
@@ -239,7 +239,7 @@ class UpdateCoreScenarioTest {
 				"Новый WAR должен быть удалён после отката"
 		);
 
-		// Библиотеки должны быть откатены
+		// Библиотеки должны быть откачены
 		assertTrue(
 				Files.exists(standDir.resolve("lib/ext/old-lib.txt")),
 				"Старые библиотеки должны быть восстановлены после отката"
@@ -321,7 +321,7 @@ class UpdateCoreScenarioTest {
 
 		TestArtifactUtils.writeFile(oldWar, "old-war");
 
-		// version.txt до обновления не существует.
+		// Файл 'version.txt' до обновления не существует.
 		// Но он должен быть указан в affectedPaths, чтобы при откате его можно было удалить.
 		List<String> affectedPaths = List.of(
 				"webapps/sufd-server-1.0.0.war",
@@ -384,6 +384,7 @@ class UpdateCoreScenarioTest {
 				"old-app"
 		);
 
+		//noinspection GrazieInspection
 		TestArtifactUtils.writeFile(
 				standDir.resolve("sql-migrations/old.sql"),
 				"-- old sql"

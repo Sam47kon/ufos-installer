@@ -52,7 +52,7 @@ public class ScenariosUtils {
 				LOGGER.info(" 7. Размещение WAR-файла ядра");
 				LOGGER.info(" 8. Распаковка библиотек в lib/ext/");
 				LOGGER.info(" 9. Размещение приклада в sufd.config/ и sql-migrations/");
-				LOGGER.info("10. Выполнение init SQL");
+				LOGGER.info("10. Выполнение init SQL через " + (context.isUsePsql() ? "psql" : "JDBC"));
 				LOGGER.info("11. Применение прав доступа");
 				LOGGER.info("12. Формирование отчёта");
 			}

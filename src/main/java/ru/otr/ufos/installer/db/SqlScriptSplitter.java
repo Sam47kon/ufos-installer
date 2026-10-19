@@ -151,16 +151,14 @@ public class SqlScriptSplitter {
 			char c = sql.charAt(end);
 			if (c == '$') {
 				String tagBody = sql.substring(start + 1, end);
-				if (tagBody.isEmpty()) {
+				// Пустой тег $$ или валидный именованный тег $tag$
+				if (tagBody.isEmpty() || tagBody.matches("[A-Za-z_][A-Za-z0-9_]*")) {
 					return sql.substring(start, end + 1);
 				}
-				if (tagBody.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-					return sql.substring(start, end + 1);
-				}
-				return null;
+				return null; // Недопустимые символы в теге
 			}
 			if (!(Character.isLetterOrDigit(c) || c == '_')) {
-				return null;
+				return null; // Недопустимый символ до закрывающего $
 			}
 			end++;
 		}
