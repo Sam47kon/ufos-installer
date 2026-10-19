@@ -7,11 +7,14 @@ import ru.otr.ufos.installer.filesystem.FileManager;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static ru.otr.ufos.installer.logging.InstallerLogger.LOGGER;
 
@@ -125,25 +128,74 @@ public class ArtifactResolver {
 	}
 
 	public Path resolveInitSql(Path explicitPath) throws IOException {
+		// --- 1. Явно указанный путь ---
 		if (explicitPath != null) {
-			requireFile(explicitPath);
-			LOGGER.info("Init SQL указан явно: " + explicitPath);
-			return explicitPath;
+			if (!Files.exists(explicitPath)) {
+				throw new IllegalStateException("Init SQL не найден: " + explicitPath);
+			}
+
+			// Директория: ищем create.sql внутри
+			if (Files.isDirectory(explicitPath)) {
+				Path createSql = explicitPath.resolve("create.sql");
+				if (Files.exists(createSql) && Files.isRegularFile(createSql)) {
+					LOGGER.info("Init SQL найден в директории: " + createSql);
+					return createSql;
+				}
+				throw new IllegalStateException("В указанной директории не найден файл create.sql: " + explicitPath);
+			}
+
+			if (!Files.isRegularFile(explicitPath)) {
+				throw new IllegalStateException("Ожидался файл или архив, но найдено: " + explicitPath);
+			}
+
+			String name = explicitPath.getFileName().toString().toLowerCase();
+			// Обычный .sql файл
+			if (name.endsWith(".sql")) {
+				LOGGER.info("Init SQL указан явно: " + explicitPath);
+				return explicitPath;
+			}
+			// ZIP-архив: ищем create.sql внутри
+			if (name.endsWith(".zip")) {
+				Path extracted = extractCreateSqlFromZip(explicitPath);
+				LOGGER.info("Init SQL извлечён из архива: " + explicitPath.getFileName() + " -> " + extracted);
+				return extracted;
+			}
+
+			throw new IllegalStateException("Неподдерживаемый формат init SQL. Ожидается .sql, .zip или директория: " + explicitPath);
 		}
 
-		List<Path> candidates = findFiles(name -> name.toLowerCase().endsWith(".sql"));
-		if (candidates.isEmpty()) {
-			LOGGER.warn("Init SQL не найден. Инициализация БД будет пропущена.");
-			return null;
+		// --- 2. Автоматический поиск в artifactsDir ---
+
+		// 2.1. Сначала ищем обычные .sql файлы
+		List<Path> sqlCandidates = findFiles(n -> n.toLowerCase().endsWith(".sql"));
+		if (sqlCandidates.size() == 1) {
+			Path result = sqlCandidates.get(0);
+			LOGGER.info("Найден init SQL: " + result);
+			return result;
 		}
 
-		if (candidates.size() > 1) {
-			throw new IllegalStateException("Найдено несколько SQL-файлов. Укажите явно через --init-sql: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
+		if (sqlCandidates.size() > 1) {
+			throw new IllegalStateException(
+					"Найдено несколько SQL-файлов. Укажите явно через --init-sql: " +
+					sqlCandidates.stream()
+							.map(Path::getFileName)
+							.map(Path::toString)
+							.collect(Collectors.joining(", "))
+			);
 		}
 
-		Path result = candidates.get(0);
-		LOGGER.info("Найден init SQL: " + result);
-		return result;
+		// 2.2. Если .sql не найден — ищем ZIP с create.sql внутри
+		List<Path> zipCandidates = findFiles(n -> n.toLowerCase().endsWith(".zip"));
+		for (Path zip : zipCandidates) {
+			if (zipContainsCreateSql(zip)) {
+				Path extracted = extractCreateSqlFromZip(zip);
+				LOGGER.info("Init SQL извлечён из архива: " + zip.getFileName() + " -> " + extracted);
+				return extracted;
+			}
+		}
+
+		LOGGER.warn("Init SQL не найден (.sql файл или .zip с create.sql). Инициализация БД будет пропущена.");
+		return null;
 	}
 
 	public String extractCoreVersion(@NotNull Path warFile, String fallbackVersion) {
@@ -169,6 +221,57 @@ public class ArtifactResolver {
 		String lower = fileName.toLowerCase();
 		return lower.contains("jetty")
 			   && lower.contains("template") || lower.startsWith("template") || lower.contains("stand-template");
+	}
+
+	/**
+	 * Проверяет, содержит ли ZIP-архив запись create.sql (в корне или в поддиректории).
+	 */
+	private boolean zipContainsCreateSql(@NotNull Path zipFile) {
+		try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
+			ZipEntry entry;
+			while ((entry = zis.getNextEntry()) != null) {
+				String entryName = entry.getName().replace('\\', '/');
+				if (entryName.equals("create.sql") || entryName.endsWith("/create.sql")) {
+					return true;
+				}
+				zis.closeEntry();
+			}
+		} catch (IOException e) {
+			LOGGER.warn("Не удалось прочитать ZIP-архив " + zipFile.getFileName() + ": " + e.getMessage());
+		}
+		return false;
+	}
+
+	/**
+	 * Извлекает create.sql из ZIP-архива во временную директорию.
+	 * Возвращает путь к распакованному create.sql.
+	 */
+	private @NotNull Path extractCreateSqlFromZip(@NotNull Path zipFile) throws IOException {
+		Path tempDir = Files.createTempDirectory("ufos-init-sql-");
+		try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
+			ZipEntry entry;
+			while ((entry = zis.getNextEntry()) != null) {
+				String entryName = entry.getName().replace('\\', '/');
+
+				if (entryName.equals("create.sql") || entryName.endsWith("/create.sql")) {
+					// Копируем всегда как create.sql в корне tempDir — плоская структура.
+					// Это также защищает от zip-slip: путь всегда tempDir/create.sql.
+					Path target = tempDir.resolve("create.sql");
+					Files.copy(zis, target, StandardCopyOption.REPLACE_EXISTING);
+					return target;
+				}
+
+				zis.closeEntry();
+			}
+		}
+
+		// Если дошли сюда — в архиве нет create.sql
+		try {
+			FileManager.deleteRecursively(tempDir, LOGGER);
+		} catch (IOException ignored) {
+			// не критично
+		}
+		throw new IllegalStateException("В архиве не найден файл create.sql: " + zipFile.getFileName());
 	}
 
 	private List<Path> findFiles(FilePredicate predicate) throws IOException {
