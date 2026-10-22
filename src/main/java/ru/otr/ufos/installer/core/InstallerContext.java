@@ -70,7 +70,7 @@ public class InstallerContext {
 	private boolean verbose;
 
 	/**
-	 * "--usePsql"
+	 * "--use-psql"
 	 * Выполнять init SQL через psql (true) или через JDBC (false).
 	 * По умолчанию true, так как боевой create.sql содержит {@code COPY ... FROM stdin;}
 	 */
