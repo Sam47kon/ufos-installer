@@ -184,7 +184,7 @@ public class ArtifactResolver {
 			);
 		}
 
-		// 2.2. Если .sql не найден — ищем ZIP с create.sql внутри
+		// 2.2. Если .sql не найден - ищем ZIP с create.sql внутри
 		List<Path> zipCandidates = findFiles(n -> n.toLowerCase().endsWith(".zip"));
 		for (Path zip : zipCandidates) {
 			if (zipContainsCreateSql(zip)) {
@@ -254,7 +254,7 @@ public class ArtifactResolver {
 				String entryName = entry.getName().replace('\\', '/');
 
 				if (entryName.equals("create.sql") || entryName.endsWith("/create.sql")) {
-					// Копируем всегда как create.sql в корне tempDir — плоская структура.
+					// Копируем всегда как create.sql в корне tempDir - плоская структура.
 					// Это также защищает от zip-slip: путь всегда tempDir/create.sql.
 					Path target = tempDir.resolve("create.sql");
 					Files.copy(zis, target, StandardCopyOption.REPLACE_EXISTING);
@@ -265,7 +265,7 @@ public class ArtifactResolver {
 			}
 		}
 
-		// Если дошли сюда — в архиве нет create.sql
+		// Если дошли сюда - в архиве нет create.sql
 		try {
 			FileManager.deleteRecursively(tempDir, LOGGER);
 		} catch (IOException ignored) {

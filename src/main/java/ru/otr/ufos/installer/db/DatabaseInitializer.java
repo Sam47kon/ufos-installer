@@ -114,6 +114,43 @@ public class DatabaseInitializer {
 		}
 	}
 
+	/**
+	 * Проверяет наличие пользователей 'ufos' и 'postgres' в БД и создаёт их, если они отсутствуют.
+	 * Пароль для обоих пользователей устанавливается в 'ufos', права - SUPERUSER.
+	 */
+	public static void ensureRequiredUsers(@Nullable String dbUrl, String host, String port, String dbName, String user, String password) {
+		LOGGER.step("Проверка и создание требуемых пользователей БД (ufos, postgres)");
+		String url = resolveJdbcUrl(dbUrl, host, port, dbName);
+		try (Connection connection = getConnection(url, user, password)) {
+			ensureUserExists(connection, "ufos", "ufos");
+			ensureUserExists(connection, "postgres", "ufos");
+		} catch (SQLException e) {
+			LOGGER.warn("Не удалось подключиться для проверки/создания пользователей БД: " + e.getMessage());
+		}
+	}
+
+	private static void ensureUserExists(Connection connection, String username, @SuppressWarnings("SameParameterValue") String pwd) {
+		try (PreparedStatement ps = connection.prepareStatement(
+				"SELECT 1 FROM pg_roles WHERE rolname = ?"
+		)) {
+			ps.setString(1, username);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (!rs.next()) {
+					LOGGER.info("Пользователь БД [" + username + "] не найден. Создаю с паролем [" + pwd + "] и правами SUPERUSER...");
+					try (Statement stmt = connection.createStatement()) {
+						// Имена пользователей захардкожены, поэтому SQL-инъекция исключена
+						stmt.execute(String.format("CREATE ROLE %s WITH LOGIN SUPERUSER PASSWORD '%s'", username, pwd));
+						LOGGER.info("Пользователь БД [" + username + "] успешно создан.");
+					}
+				} else {
+					LOGGER.debug("Пользователь БД [" + username + "] уже существует.");
+				}
+			}
+		} catch (SQLException e) {
+			LOGGER.warn("Не удалось проверить/создать пользователя [" + username + "]: " + e.getMessage());
+		}
+	}
+
 	private static void executeSqlFileViaPsql(@NotNull Path sqlFile, @Nullable String dbUrl, String host, String port, String dbName, String user, String password) throws IOException {
 		LOGGER.step("Выполнение init SQL через psql: " + sqlFile.getFileName());
 
@@ -227,7 +264,7 @@ public class DatabaseInitializer {
 
 	/**
 	 * Резолвит хост/порт/имя БД.
-	 * Если задан dbUrl — параметры извлекаются из него.
+	 * Если задан dbUrl - параметры извлекаются из него.
 	 */
 	private static @NotNull DbEndpoint resolveEndpoint(@Nullable String dbUrl, String host, String port, String dbName) {
 		if (StringUtils.isNotBlank(dbUrl)) {

@@ -65,6 +65,7 @@ public class InitScenario implements ScenarioExecutor {
 		boolean skipDb = context.isSkipDb();
 		if (!skipDb) {
 			DatabaseInitializer.checkConnection(dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
+			DatabaseInitializer.ensureRequiredUsers(dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
 			DatabaseInitializer.logTableCount(dbUrl, dbHost, dbPort, dbName, dbUser, dbPassword);
 
 			if (context.isUsePsql() && initSql != null && !DatabaseInitializer.isPsqlAvailable()) {
