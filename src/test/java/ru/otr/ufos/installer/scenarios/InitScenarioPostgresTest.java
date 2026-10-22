@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -41,7 +41,11 @@ import static ru.otr.ufos.installer.scenarios.TestArtifactUtils.*;
  */
 @SuppressWarnings({"SqlNoDataSourceInspection", "SqlResolve"})
 @Testcontainers
-@EnabledIfEnvironmentVariable(named = "SKIP_DOCKER_TESTS", matches = "^(?!true).*$", disabledReason = "Docker tests disabled by SKIP_DOCKER_TESTS=true")
+@EnabledIfSystemProperty(
+		named = "ENABLE_DOCKER_TESTS",
+		matches = "^(true)?$",
+		disabledReason = "Тест InitScenarioPostgresTest (Docker tests) не включен, отсутствует флаг 'ENABLE_DOCKER_TESTS'"
+)
 class InitScenarioPostgresTest {
 
 	private static final String POSTGRES_IMAGE = "postgres:15-alpine";
