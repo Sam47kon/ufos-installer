@@ -84,13 +84,13 @@ public class ArtifactResolver {
 			return explicitPath;
 		}
 
-		List<Path> candidates = findFiles(name -> name.toLowerCase().endsWith(".zip") && !name.toLowerCase().startsWith("sufd-server-libs") && !isLikelyJettyTemplate(name));
+		List<Path> candidates = findFiles(name -> name.toLowerCase().endsWith(".zip") && name.toLowerCase().contains("func"));
 		if (candidates.isEmpty()) {
 			return null;
 		}
 
 		if (candidates.size() > 1) {
-			throw new IllegalStateException("Найдено несколько возможных архивов приклада. Укажите явно через --app-zip: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
+			throw new IllegalStateException("Найдено несколько возможных архивов приклада. Ожидался один файл вида func-<version>.zip. Укажите явно через --app-zip: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
 		}
 
 		Path result = candidates.get(0);
