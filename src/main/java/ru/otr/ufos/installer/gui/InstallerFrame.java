@@ -159,13 +159,10 @@ public class InstallerFrame extends JFrame {
 		topPanel.add(dbPanel, gbc);
 
 		modeCombo.addActionListener(e -> updateVisibility());
+		skipDbCheckBox.addItemListener(e -> updateVisibility());
 		updateVisibility();
 
-		JScrollPane topScroll = new JScrollPane(topPanel);
-		topScroll.setPreferredSize(new Dimension(980, 430));
-		topScroll.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-
-		add(topScroll, BorderLayout.NORTH);
+		add(topPanel, BorderLayout.NORTH);
 
 		// Лог
 		logArea = new JTextArea();
@@ -249,7 +246,7 @@ public class InstallerFrame extends JFrame {
 
 	private void updateVisibility() {
 		boolean initMode = modeCombo.getSelectedIndex() == 0;
-		dbPanel.setVisible(initMode);
+		dbPanel.setVisible(initMode && !skipDbCheckBox.isSelected());
 
 		revalidate();
 		repaint();
