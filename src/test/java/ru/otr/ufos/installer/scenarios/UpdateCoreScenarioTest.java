@@ -294,6 +294,36 @@ class UpdateCoreScenarioTest {
 	}
 
 	@Test
+	@DisplayName("Сценарий 2: приклад с явным путём работает без каталога артефактов")
+	void updateCoreShouldWorkWithExplicitAppZipWithoutArtifactsDir() throws Exception {
+		createExistingStand(true);
+
+		// Каталог артефактов не задан (не существует), приклад указан явно
+		Path newApp = TestArtifactUtils.createAppZip(tempDir, "2.0.0");
+		Path missingArtifactsDir = tempDir.resolve("no-such-artifacts");
+		assertFalse(Files.exists(missingArtifactsDir), "Предусловие: каталога артефактов нет");
+
+		InstallerContext context = new InstallerContext(Scenario.UPDATE_CORE, question -> true);
+		context.setStandDir(standDir);
+		context.setArtifactsDir(missingArtifactsDir);
+		context.setBackupDir(backupDir);
+		context.setAppZip(newApp);
+
+		new UpdateCoreScenario().execute(context);
+
+		// Обновляется только приклад, без обращения к каталогу артефактов
+		assertTrue(
+				Files.exists(standDir.resolve("sufd.config/new-app.txt")),
+				"Приклад должен обновиться при явном пути и отсутствующем каталоге артефактов"
+		);
+
+		assertTrue(
+				Files.exists(standDir.resolve("webapps/sufd-server-1.0.0.war")),
+				"Ядро не должно трогаться без артефактов ядра"
+		);
+	}
+
+	@Test
 	@DisplayName("Сценарий 2: Проверка, что архив битый")
 	void brokenLibsZipShouldFailExtraction() throws Exception {
 		InstallerLogger.init(tempDir.resolve("broken-zip-test.log"), true);

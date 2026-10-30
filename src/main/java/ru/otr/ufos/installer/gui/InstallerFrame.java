@@ -37,6 +37,10 @@ public class InstallerFrame extends JFrame {
 	private final JTextField jettyTemplateField;
 	private final JTextField initSqlField;
 
+	// Строки формы, видимые только в сценарии init
+	private final PathRow jettyTemplateRow;
+	private final PathRow initSqlRow;
+
 	private final JTextField ufosVersionField;
 	private final JTextField chownUserField;
 
@@ -95,25 +99,27 @@ public class InstallerFrame extends JFrame {
 		row++;
 
 		// Основные пути
-		standDirField = addPathField(topPanel, gbc, row, "Папка стенда:", true);
+		standDirField = addPathField(topPanel, gbc, row, "Папка стенда:", true).field();
 		row++;
 
-		artifactsDirField = addPathField(topPanel, gbc, row, "Папка артефактов:", true);
+		artifactsDirField = addPathField(topPanel, gbc, row, "Папка артефактов:", true).field();
 		row++;
 
-		coreWarField = addPathField(topPanel, gbc, row, "WAR ядра (опционально):", false);
+		coreWarField = addPathField(topPanel, gbc, row, "WAR ядра (опционально):", false).field();
 		row++;
 
-		libsZipField = addPathField(topPanel, gbc, row, "Архив библиотек (опционально):", false);
+		libsZipField = addPathField(topPanel, gbc, row, "Архив библиотек (опционально):", false).field();
 		row++;
 
-		appZipField = addPathField(topPanel, gbc, row, "Архив приклада (опционально):", false);
+		appZipField = addPathField(topPanel, gbc, row, "Архив приклада (опционально):", false).field();
 		row++;
 
-		jettyTemplateField = addPathField(topPanel, gbc, row, "Шаблон Jetty (zip или папка):", false);
+		jettyTemplateRow = addPathField(topPanel, gbc, row, "Шаблон Jetty (zip или папка):", false);
+		jettyTemplateField = jettyTemplateRow.field();
 		row++;
 
-		initSqlField = addPathField(topPanel, gbc, row, "Init SQL (опционально):", false);
+		initSqlRow = addPathField(topPanel, gbc, row, "Init SQL (опционально):", false);
+		initSqlField = initSqlRow.field();
 		row++;
 
 		ufosVersionField = addTextField(topPanel, gbc, row, "Версия УФОС (опционально):");
@@ -253,17 +259,24 @@ public class InstallerFrame extends JFrame {
 		boolean initMode = modeCombo.getSelectedIndex() == 0;
 		dbPanel.setVisible(initMode && !skipDbCheckBox.isSelected());
 
+		// Элементы, относящиеся только к сценарию init
+		skipDbCheckBox.setVisible(initMode);
+		usePsqlCheckBox.setVisible(initMode);
+		jettyTemplateRow.setVisible(initMode);
+		initSqlRow.setVisible(initMode);
+
 		revalidate();
 		repaint();
 	}
 
-	private @NotNull JTextField addPathField(@NotNull JPanel panel,
-											 @NotNull GridBagConstraints gbc,
-											 int row,
-											 String label,
-											 boolean directoryOnly) {
+	private @NotNull PathRow addPathField(@NotNull JPanel panel,
+										  @NotNull GridBagConstraints gbc,
+										  int row,
+										  String labelText,
+										  boolean directoryOnly) {
 
 		JTextField field = new JTextField(40);
+		JLabel label = new JLabel(labelText);
 		JButton browseButton = new JButton("...");
 
 		browseButton.addActionListener(e -> browsePath(field, directoryOnly));
@@ -272,7 +285,7 @@ public class InstallerFrame extends JFrame {
 		gbc.gridy = row;
 		gbc.weightx = 0;
 		gbc.gridwidth = 1;
-		panel.add(new JLabel(label), gbc);
+		panel.add(label, gbc);
 
 		gbc.gridx = 1;
 		gbc.weightx = 1;
@@ -282,7 +295,18 @@ public class InstallerFrame extends JFrame {
 		gbc.weightx = 0;
 		panel.add(browseButton, gbc);
 
-		return field;
+		return new PathRow(label, field, browseButton);
+	}
+
+	/**
+	 * Строка формы "подпись + поле + кнопка обзора", которую можно целиком скрывать/показывать.
+	 */
+	private record PathRow(JLabel label, JTextField field, JButton browseButton) {
+		void setVisible(boolean visible) {
+			label.setVisible(visible);
+			field.setVisible(visible);
+			browseButton.setVisible(visible);
+		}
 	}
 
 	private @NotNull JTextField addTextField(@NotNull JPanel panel,

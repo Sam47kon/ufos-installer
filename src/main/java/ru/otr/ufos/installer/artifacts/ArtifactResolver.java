@@ -285,10 +285,10 @@ public class ArtifactResolver {
 	 * @return найденный файл, либо null, если артефакт не найден и не указан явно
 	 */
 	private @Nullable Path resolveSingle(Path explicitPath,
-										@NotNull Predicate<String> predicate,
-										@NotNull String explicitLogPrefix,
-										@NotNull String foundLogPrefix,
-										@NotNull String multipleMessage) throws IOException {
+										 @NotNull Predicate<String> predicate,
+										 @NotNull String explicitLogPrefix,
+										 @NotNull String foundLogPrefix,
+										 @NotNull String multipleMessage) throws IOException {
 		if (explicitPath != null) {
 			requireFile(explicitPath);
 			LOGGER.info(explicitLogPrefix + explicitPath);
@@ -310,8 +310,11 @@ public class ArtifactResolver {
 	}
 
 	private List<Path> findFiles(Predicate<String> predicate) throws IOException {
-		if (!Files.exists(artifactsDir)) {
-			throw new IllegalStateException("Каталог артефактов не найден: " + artifactsDir);
+		if (!Files.isDirectory(artifactsDir)) {
+			// Каталог артефактов не задан или не существует — это не ошибка, если артефакты
+			// указаны явно. Автопоиск просто не даёт кандидатов, а вызывающая сторона
+			// либо вернёт null (опциональные артефакты), либо даст понятное сообщение.
+			return List.of();
 		}
 
 		try (Stream<Path> stream = FileManager.listFiles(artifactsDir)) {
