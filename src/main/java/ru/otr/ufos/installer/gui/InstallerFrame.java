@@ -44,6 +44,7 @@ public class InstallerFrame extends JFrame {
 	private final JCheckBox usePsqlCheckBox;
 	private final JCheckBox forceCheckBox;
 	private final JCheckBox verboseCheckBox;
+	private final JCheckBox needBackupCheckBox;
 
 	private final JPanel dbPanel;
 	private final JTextField dbHostField;
@@ -132,11 +133,15 @@ public class InstallerFrame extends JFrame {
 		);
 		forceCheckBox = new JCheckBox("--force");
 		verboseCheckBox = new JCheckBox("Подробный вывод");
+		needBackupCheckBox = new JCheckBox("Создавать бэкап");
+		needBackupCheckBox.setSelected(true);
+		needBackupCheckBox.setToolTipText("Создавать бэкап стенда перед обновлением. Снимите флажок, чтобы обновлять без бэкапа");
 
 		checkBoxPanel.add(skipDbCheckBox);
 		checkBoxPanel.add(usePsqlCheckBox);
 		checkBoxPanel.add(forceCheckBox);
 		checkBoxPanel.add(verboseCheckBox);
+		checkBoxPanel.add(needBackupCheckBox);
 
 		gbc.gridx = 0;
 		gbc.gridy = row;
@@ -427,6 +432,7 @@ public class InstallerFrame extends JFrame {
 		context.setChownUser(emptyToNull(chownUserField.getText()));
 
 		context.setSkipDb(skipDbCheckBox.isSelected());
+		context.setNeedBackup(needBackupCheckBox.isSelected());
 		context.setUsePsql(usePsqlCheckBox.isSelected());
 		context.setForce(forceCheckBox.isSelected());
 		context.setVerbose(verboseCheckBox.isSelected());

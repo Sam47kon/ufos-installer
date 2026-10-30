@@ -135,6 +135,14 @@ public class CliParser implements Runnable {
 	private boolean skipDb;
 
 	@Option(
+			names = {"--need-backup"},
+			negatable = true,
+			defaultValue = "true",
+			description = "Создавать бэкап стенда перед обновлением (по умолчанию). Отключить: --no-need-backup"
+	)
+	private boolean needBackup = true;
+
+	@Option(
 			names = {"--chown-user"},
 			description = "Пользователь для chown -R после установки (только Linux)"
 	)

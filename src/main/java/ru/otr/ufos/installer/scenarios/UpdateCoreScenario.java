@@ -60,9 +60,23 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 
 		ArtifactResolver resolver = new ArtifactResolver(context.getArtifactsDir());
 
-		Path newCoreWar = resolver.resolveCoreWar(context.getCoreWar());
-		Path libsZip = resolver.resolveLibsZip(context.getLibsZip());
+		// Ядро опционально: обновляется только при наличии полного набора артефактов (WAR + библиотеки).
+		// Если задан только один из двух артефактов ядра — это ошибка конфигурации.
+		Path newCoreWar = resolver.resolveCoreWarOptional(context.getCoreWar());
+		Path libsZip = resolver.resolveLibsZipOptional(context.getLibsZip());
 		@Nullable Path appZip = resolver.resolveAppZip(context.getAppZip());
+
+		if ((newCoreWar == null) != (libsZip == null)) {
+			throw new IllegalStateException(
+					"Заданы не все артефакты ядра: WAR и архив библиотек должны указываться вместе (либо оба опущены)"
+			);
+		}
+		boolean updateCore = newCoreWar != null;
+		if (!updateCore && appZip == null) {
+			throw new IllegalStateException(
+					"Нет артефактов для обновления: не найдены ни артефакты ядра (WAR + библиотеки), ни приклад (func-*.zip)"
+			);
+		}
 
 		Path checksumsFile = context.getArtifactsDir().resolve("checksums.sha256");
 
@@ -71,7 +85,7 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		}
 
 		// Текущие WAR-файлы
-		List<Path> currentWars = findCurrentWars(webappsDir);
+		List<Path> currentWars = updateCore ? findCurrentWars(webappsDir) : List.of();
 
 		String oldVersion = "unknown";
 		Path oldWar = currentWars.isEmpty() ? null : currentWars.get(0);
@@ -79,72 +93,92 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 			oldVersion = resolver.extractCoreVersion(oldWar, null);
 		}
 
-		String newVersion = resolver.extractCoreVersion(newCoreWar, context.getUfosVersion());
+		String newVersion = updateCore ? resolver.extractCoreVersion(newCoreWar, context.getUfosVersion()) : null;
 
-		LOGGER.info("Текущая версия: " + oldVersion);
-		LOGGER.info("Новая версия:   " + newVersion);
+		LOGGER.info("Текущая версия ядра: " + oldVersion);
+		LOGGER.info("Новая версия ядра:   " + (updateCore ? newVersion : "не обновляется"));
 
 		// Права до изменений
 		PermissionsManager permissionsManager = new PermissionsManager(context.getChownUser());
 		if (!PermissionsManager.IS_WINDOWS) {
-			permissionsManager.snapshot(libExtDir, sufdConfigDir, sqlMigrationsDir, versionFile);
+			if (updateCore) {
+				permissionsManager.snapshot(libExtDir);
+			}
+			if (appZip != null) {
+				permissionsManager.snapshot(sufdConfigDir, sqlMigrationsDir);
+			}
+			if (appZip != null || Files.exists(versionFile)) {
+				permissionsManager.snapshot(versionFile);
+			}
 		}
-		PermissionsManager.Snapshot oldWarSnapshot = oldWar == null ? null : permissionsManager.createSnapshot(oldWar);
+		PermissionsManager.Snapshot oldWarSnapshot = (updateCore && oldWar != null) ? permissionsManager.createSnapshot(oldWar) : null;
 
 		// Новый WAR
-		Path targetWar = webappsDir.resolve(newCoreWar.getFileName());
+		Path targetWar = updateCore ? webappsDir.resolve(newCoreWar.getFileName()) : null;
 
-		BackupResult backup = createBackup(currentWars, standDir, targetWar, appZip, versionFile, context.getBackupDir());
-		context.addReport("Бэкап", backup.backupDir().toAbsolutePath().toString());
+		BackupResult backup = context.isNeedBackup()
+				? createBackup(currentWars, standDir, targetWar, appZip, versionFile, context.getBackupDir(), updateCore)
+				: null;
+		context.addReport("Бэкап", null == backup ? "не создавался" : backup.backupDir().toAbsolutePath().toString());
 		try {
-			// Обновление WAR
-			LOGGER.step("Обновление ядра");
-			for (Path war : currentWars) {
-				LOGGER.info("Удаление старого WAR: " + war.getFileName());
-				Files.deleteIfExists(war);
-				context.addChange("Удалено: " + relativize(standDir, war));
-			}
-			// Удаляем возможные распакованные директории
-			deleteExplodedWars(webappsDir);
-			FileManager.copyFile(newCoreWar, targetWar, LOGGER);
-			LOGGER.info("Новый WAR размещён: " + targetWar);
-			context.addChange("Создано: " + relativize(standDir, targetWar));
+			if (updateCore) {
+				// Обновление WAR
+				LOGGER.step("Обновление ядра");
+				for (Path war : currentWars) {
+					LOGGER.info("Удаление старого WAR: " + war.getFileName());
+					Files.deleteIfExists(war);
+					context.addChange("Удалено: " + relativize(standDir, war));
+				}
+				// Удаляем возможные распакованные директории
+				deleteExplodedWars(webappsDir);
+				FileManager.copyFile(newCoreWar, targetWar, LOGGER);
+				LOGGER.info("Новый WAR размещён: " + targetWar);
+				context.addChange("Создано: " + relativize(standDir, targetWar));
 
-			// Обновление библиотек
-			LOGGER.step("Обновление библиотек lib/ext");
-			ArchiveHelper.extractSmart(libsZip, libExtDir, true);
-			context.addChange("Обновлено: lib/ext/");
+				// Обновление библиотек
+				LOGGER.step("Обновление библиотек lib/ext");
+				ArchiveHelper.extractSmart(libsZip, libExtDir, true);
+				context.addChange("Обновлено: lib/ext/");
+			} else {
+				LOGGER.info("Артефакты ядра не заданы — ядро и библиотеки не обновляются");
+			}
 
 			// Обновление приклада
-			LOGGER.step("Обновление приклада");
-			ScenariosUtils.deployApp(context, appZip, standDir);
+			if (appZip != null) {
+				LOGGER.step("Обновление приклада");
+				ScenariosUtils.deployApp(context, appZip, standDir);
+			} else {
+				LOGGER.info("Архив приклада не задан — приклад не обновляется");
+			}
 
 			if (!PermissionsManager.IS_WINDOWS) {
 				// Восстановление прав
 				LOGGER.step("Восстановление прав доступа");
 				permissionsManager.restore();
-				if (oldWarSnapshot != null) {
-					permissionsManager.applyFilePermissions(targetWar, oldWarSnapshot.getRootPermissions());
-				} else {
-					permissionsManager.applyDefaults(targetWar);
+				if (updateCore) {
+					if (oldWarSnapshot != null) {
+						permissionsManager.applyFilePermissions(targetWar, oldWarSnapshot.getRootPermissions());
+					} else {
+						permissionsManager.applyDefaults(targetWar);
+					}
 				}
 			}
 
 			// Отчёт
 			context.addReport("Стенд", standDir.toAbsolutePath().toString());
 			context.addReport("Старая версия ядра", oldVersion);
-			context.addReport("Новая версия ядра", newVersion);
-			context.addReport("Новый WAR", targetWar.toAbsolutePath().toString());
-			context.addReport("Архив библиотек", libsZip.getFileName().toString());
+			context.addReport("Новая версия ядра", updateCore ? newVersion : "не обновляется");
+			context.addReport("Новый WAR", updateCore ? targetWar.toAbsolutePath().toString() : "не обновляется");
+			context.addReport("Архив библиотек", updateCore ? libsZip.getFileName().toString() : "не обновляется");
 			context.addReport("Архив приклада", null == appZip ? "Установка приклада пропущена" : appZip.getFileName().toString());
 			ReportGenerator.printReport(context);
 		} catch (Exception e) {
 			LOGGER.error("Ошибка обновления", e);
-			boolean rolledBack = RollbackManager.requestRollback(backup, standDir, context.getUserPrompt(), e);
-			if (rolledBack) {
-				context.addReport("Откат", "выполнен");
+			if (backup == null) {
+				context.addReport("Откат", "недоступен (бэкап не создавался)");
 			} else {
-				context.addReport("Откат", "отменён");
+				boolean rolledBack = RollbackManager.requestRollback(backup, standDir, context.getUserPrompt(), e);
+				context.addReport("Откат", rolledBack ? "выполнен" : "отменён");
 			}
 			throw e;
 		}
@@ -163,20 +197,22 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		}
 	}
 
-	private @NotNull BackupResult createBackup(@NotNull List<Path> currentWars, Path standDir, Path targetWar, @Nullable Path appZip, Path versionFile, Path backupDir) throws IOException {
+	private @NotNull BackupResult createBackup(@NotNull List<Path> currentWars, Path standDir, @Nullable Path targetWar, @Nullable Path appZip, Path versionFile, Path backupDir, boolean updateCore) throws IOException {
 		// Бэкап только того, что заменяем
 		List<String> backupPaths = new ArrayList<>();
-		// Старые WAR
-		currentWars.stream().map(war -> relativize(standDir, war)).forEach(backupPaths::add);
+		if (updateCore) {
+			// Старые WAR
+			currentWars.stream().map(war -> relativize(standDir, war)).forEach(backupPaths::add);
 
-		// Чтобы при откате удалить новый war, если он уже был скопирован
-		String newWarRelative = relativize(standDir, targetWar);
-		if (!backupPaths.contains(newWarRelative)) {
-			backupPaths.add(newWarRelative);
+			// Чтобы при откате удалить новый war, если он уже был скопирован
+			String newWarRelative = relativize(standDir, targetWar);
+			if (!backupPaths.contains(newWarRelative)) {
+				backupPaths.add(newWarRelative);
+			}
+
+			// Библиотеки
+			backupPaths.add("lib/ext");
 		}
-
-		// Библиотеки
-		backupPaths.add("lib/ext");
 		// Приклад
 		if (null != appZip) {
 			backupPaths.add("sufd.config");

@@ -58,6 +58,8 @@ public class InstallerContext {
 	private String dbPassword;
 	// "--skip-db"
 	private boolean skipDb;
+	// "--need-backup": создавать бэкап перед обновлением (update-core)
+	private boolean needBackup = true;
 	// "--chown-user"
 	private String chownUser;
 	// "--var"

@@ -58,13 +58,13 @@ public class ScenariosUtils {
 			}
 			case UPDATE_CORE -> {
 				LOGGER.info(" 1. Проверка окружения");
-				LOGGER.info(" 2. Поиск артефактов");
+				LOGGER.info(" 2. Поиск артефактов: ядро (WAR + библиотеки) — опционально, приклад (func-*.zip) — опционально");
 				LOGGER.info(" 3. Проверка контрольных сумм");
-				LOGGER.info(" 4. Создание бэкапа изменяемых частей");
-				LOGGER.info(" 5. Замена WAR-файла ядра");
-				LOGGER.info(" 6. Замена lib/ext/");
-				LOGGER.info(" 7. Замена sufd.config/");
-				LOGGER.info(" 8. Замена sql-migrations/");
+				LOGGER.info(" 4. Создание бэкапа изменяемых частей (отключается --no-need-backup)");
+				LOGGER.info(" 5. Замена WAR-файла ядра (если найдены артефакты ядра)");
+				LOGGER.info(" 6. Замена lib/ext/ (если обновляется ядро)");
+				LOGGER.info(" 7. Замена sufd.config/ (если найден архив приклада)");
+				LOGGER.info(" 8. Замена sql-migrations/ (если найден архив приклада)");
 				LOGGER.info(" 9. Обновление version.txt");
 				LOGGER.info("10. Восстановление прав доступа");
 				LOGGER.info("11. Формирование отчёта");

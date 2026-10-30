@@ -146,6 +146,7 @@ public class UfosInstaller {
 		context.setDbPassword(cli.getDbPassword());
 
 		context.setSkipDb(cli.isSkipDb());
+		context.setNeedBackup(cli.isNeedBackup());
 		context.setChownUser(cli.getChownUser());
 		context.setCustomVariables(cli.getCustomVariables());
 

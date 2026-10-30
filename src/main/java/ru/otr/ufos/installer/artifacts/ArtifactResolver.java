@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -36,45 +37,49 @@ public class ArtifactResolver {
 	}
 
 	public Path resolveCoreWar(Path explicitPath) throws IOException {
-		if (explicitPath != null) {
-			requireFile(explicitPath);
-			LOGGER.info("Ядро указано явно: " + explicitPath);
-			return explicitPath;
-		}
-
-		List<Path> candidates = findFiles(name -> name.toLowerCase().startsWith("sufd-server") && name.toLowerCase().endsWith(".war"));
-		if (candidates.isEmpty()) {
+		Path result = resolveCoreWarOptional(explicitPath);
+		if (result == null) {
 			throw new IllegalStateException(WAR_NOT_FOUND.formatted(artifactsDir));
 		}
-
-		if (candidates.size() > 1) {
-			throw new IllegalStateException("Найдено несколько WAR-файлов ядра. Укажите явно через --core-war: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
-		}
-
-		Path result = candidates.get(0);
-		LOGGER.info("Найден файл ядра: " + result);
 		return result;
 	}
 
-	public Path resolveLibsZip(Path explicitPath) throws IOException {
-		if (explicitPath != null) {
-			requireFile(explicitPath);
-			LOGGER.info("Архив библиотек указан явно: " + explicitPath);
-			return explicitPath;
-		}
+	/**
+	 * Поиск WAR-файла ядра. В отличие от {@link #resolveCoreWar} возвращает null,
+	 * если артефакт отсутствует и не указан явно (используется для опционального
+	 * обновления ядра в сценарии update-core).
+	 */
+	public @Nullable Path resolveCoreWarOptional(Path explicitPath) throws IOException {
+		return resolveSingle(
+				explicitPath,
+				name -> name.toLowerCase().startsWith("sufd-server") && name.toLowerCase().endsWith(".war"),
+				"Ядро указано явно: ",
+				"Найден файл ядра: ",
+				"Найдено несколько WAR-файлов ядра. Укажите явно через --core-war: "
+		);
+	}
 
-		List<Path> candidates = findFiles(name -> name.toLowerCase().startsWith("sufd-server-libs") && name.toLowerCase().endsWith(".zip"));
-		if (candidates.isEmpty()) {
+	public Path resolveLibsZip(Path explicitPath) throws IOException {
+		Path result = resolveLibsZipOptional(explicitPath);
+		if (result == null) {
 			throw new IllegalStateException(LIB_NOT_FOUND.formatted(artifactsDir));
 		}
-
-		if (candidates.size() > 1) {
-			throw new IllegalStateException("Найдено несколько архивов библиотек. Укажите явно через --libs-zip: " + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
-		}
-
-		Path result = candidates.get(0);
-		LOGGER.info("Найден архив библиотек: " + result);
 		return result;
+	}
+
+	/**
+	 * Поиск архива библиотек ядра. В отличие от {@link #resolveLibsZip} возвращает null,
+	 * если артефакт отсутствует и не указан явно (используется для опционального
+	 * обновления ядра в сценарии update-core).
+	 */
+	public @Nullable Path resolveLibsZipOptional(Path explicitPath) throws IOException {
+		return resolveSingle(
+				explicitPath,
+				name -> name.toLowerCase().startsWith("sufd-server-libs") && name.toLowerCase().endsWith(".zip"),
+				"Архив библиотек указан явно: ",
+				"Найден архив библиотек: ",
+				"Найдено несколько архивов библиотек. Укажите явно через --libs-zip: "
+		);
 	}
 
 	public @Nullable Path resolveAppZip(Path explicitPath) throws IOException {
@@ -274,7 +279,37 @@ public class ArtifactResolver {
 		throw new IllegalStateException("В архиве не найден файл create.sql: " + zipFile.getFileName());
 	}
 
-	private List<Path> findFiles(FilePredicate predicate) throws IOException {
+	/**
+	 * Общий поиск одиночного артефакта по маске.
+	 *
+	 * @return найденный файл, либо null, если артефакт не найден и не указан явно
+	 */
+	private @Nullable Path resolveSingle(Path explicitPath,
+										@NotNull Predicate<String> predicate,
+										@NotNull String explicitLogPrefix,
+										@NotNull String foundLogPrefix,
+										@NotNull String multipleMessage) throws IOException {
+		if (explicitPath != null) {
+			requireFile(explicitPath);
+			LOGGER.info(explicitLogPrefix + explicitPath);
+			return explicitPath;
+		}
+
+		List<Path> candidates = findFiles(predicate);
+		if (candidates.isEmpty()) {
+			return null;
+		}
+
+		if (candidates.size() > 1) {
+			throw new IllegalStateException(multipleMessage + candidates.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.joining(", ")));
+		}
+
+		Path result = candidates.get(0);
+		LOGGER.info(foundLogPrefix + result);
+		return result;
+	}
+
+	private List<Path> findFiles(Predicate<String> predicate) throws IOException {
 		if (!Files.exists(artifactsDir)) {
 			throw new IllegalStateException("Каталог артефактов не найден: " + artifactsDir);
 		}
@@ -295,10 +330,5 @@ public class ArtifactResolver {
 		if (!Files.isRegularFile(path)) {
 			throw new IllegalStateException("Ожидался файл, но найдено не регулярное: " + path);
 		}
-	}
-
-	@FunctionalInterface
-	private interface FilePredicate {
-		boolean test(String fileName);
 	}
 }

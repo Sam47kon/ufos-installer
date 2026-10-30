@@ -16,6 +16,7 @@ import ru.otr.ufos.installer.logging.InstallerLogger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.zip.ZipException;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -182,6 +183,113 @@ class UpdateCoreScenarioTest {
 				"custom=true",
 				Files.readString(standDir.resolve("etc/site.properties")).trim(),
 				"Конфиги в etc/ не должны меняться при обновлении"
+		);
+	}
+
+	@Test
+	@DisplayName("Сценарий 2: обновление только приклада, ядро не трогается")
+	void updateCoreShouldUpdateOnlyAppWhenCoreArtifactsAbsent() throws Exception {
+		createExistingStand(true);
+
+		// В каталоге артефактов только приклад — WAR и библиотеки не кладём
+		Path newApp = TestArtifactUtils.createAppZip(artifactsDir, "2.0.0");
+
+		InstallerContext context = createContext(null, null, newApp);
+
+		new UpdateCoreScenario().execute(context);
+
+		// Ядро не тронуто
+		assertTrue(
+				Files.exists(standDir.resolve("webapps/sufd-server-1.0.0.war")),
+				"Старый WAR должен остаться при обновлении только приклада"
+		);
+
+		assertTrue(
+				Files.exists(standDir.resolve("lib/ext/old-lib.txt")),
+				"Библиотеки не должны обновляться при обновлении только приклада"
+		);
+
+		// Приклад обновлён
+		assertTrue(
+				Files.exists(standDir.resolve("sufd.config/new-app.txt")),
+				"Новый приклад должен быть размещён"
+		);
+
+		assertFalse(
+				Files.exists(standDir.resolve("sufd.config/old-app.txt")),
+				"Старый приклад должен быть удалён"
+		);
+
+		assertTrue(
+				Files.exists(standDir.resolve("sql-migrations/new.sql")),
+				"Новые миграции должны быть размещены"
+		);
+
+		assertEquals(
+				"2.0.0-app",
+				Files.readString(standDir.resolve("version.txt")).trim(),
+				"version.txt должен быть обновлён"
+		);
+	}
+
+	@Test
+	@DisplayName("Сценарий 2: задан только WAR без библиотек — ошибка")
+	void updateCoreShouldFailWhenOnlyWarGivenWithoutLibs() throws Exception {
+		createExistingStand(true);
+
+		Path newWar = TestArtifactUtils.createCoreWar(artifactsDir, "2.0.0");
+
+		InstallerContext context = createContext(newWar, null, null);
+
+		IllegalStateException e = assertThrows(
+				IllegalStateException.class,
+				() -> new UpdateCoreScenario().execute(context)
+		);
+		assertTrue(
+				e.getMessage().contains("WAR и архив библиотек"),
+				"Сообщение должно пояснять, что ядро задано не полностью"
+		);
+	}
+
+	@Test
+	@DisplayName("Сценарий 2: при --no-need-backup бэкап не создаётся")
+	void updateCoreShouldSkipBackupWhenNotNeeded() throws Exception {
+		createExistingStand(true);
+
+		Path newWar = TestArtifactUtils.createCoreWar(artifactsDir, "2.0.0");
+		Path newLibs = TestArtifactUtils.createLibsZip(
+				artifactsDir,
+				"2.0.0",
+				"new-lib.txt",
+				"new-lib"
+		);
+		Path newApp = TestArtifactUtils.createAppZip(artifactsDir, "2.0.0");
+
+		InstallerContext context = createContext(newWar, newLibs, newApp);
+		context.setNeedBackup(false);
+
+		new UpdateCoreScenario().execute(context);
+
+		// Бэкап не должен появиться
+		if (Files.exists(backupDir)) {
+			try (Stream<Path> stream = Files.list(backupDir)) {
+				assertTrue(
+						stream.noneMatch(Files::isDirectory),
+						"Каталог бэкапа не должен создаваться при --no-need-backup"
+				);
+			}
+		}
+
+		// Обновление при этом происходит штатно
+		assertTrue(
+				Files.exists(standDir.resolve("webapps/sufd-server-2.0.0.war")),
+				"Новый WAR должен быть размещён"
+		);
+
+		assertEquals(
+				"2.0.0-app",
+				Files.readString(standDir.resolve("version.txt")).trim(),
+				"version.txt должен быть обновлён"
 		);
 	}
 
