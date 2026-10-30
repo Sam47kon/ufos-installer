@@ -130,8 +130,6 @@ public class UfosInstaller {
 	}
 
 	private static void fillContextFromCli(@NotNull InstallerContext context, @NotNull CliParser cli) {
-		context.setUfosVersion(cli.getUfosVersion());
-
 		context.setCoreWar(cli.getCoreWar());
 		context.setLibsZip(cli.getLibsZip());
 		context.setAppZip(cli.getAppZip());

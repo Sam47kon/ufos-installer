@@ -112,8 +112,7 @@ public class InitScenario implements ScenarioExecutor {
 		}
 
 		// Версия ядра
-		String ufosVersion = context.getUfosVersion();
-		String coreVersion = resolver.extractCoreVersion(coreWar, ufosVersion);
+		String coreVersion = resolver.extractCoreVersion(coreWar);
 
 		// Подстановка переменных в etc
 		int changedConfigs = ConfigProcessor.applyVariables(standDir.resolve("etc"), buildVariables(context, coreVersion));

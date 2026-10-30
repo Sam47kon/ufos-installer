@@ -41,7 +41,6 @@ public class InstallerFrame extends JFrame {
 	private final PathRow jettyTemplateRow;
 	private final PathRow initSqlRow;
 
-	private final JTextField ufosVersionField;
 	private final JTextField chownUserField;
 
 	private final JCheckBox skipDbCheckBox;
@@ -120,9 +119,6 @@ public class InstallerFrame extends JFrame {
 
 		initSqlRow = addPathField(topPanel, gbc, row, "Init SQL (опционально):", false);
 		initSqlField = initSqlRow.field();
-		row++;
-
-		ufosVersionField = addTextField(topPanel, gbc, row, "Версия УФОС (опционально):");
 		row++;
 
 		chownUserField = addTextField(topPanel, gbc, row, "chown пользователь (опционально):");
@@ -452,7 +448,6 @@ public class InstallerFrame extends JFrame {
 		context.setJettyTemplate(getPath(jettyTemplateField.getText()));
 		context.setInitSql(getPath(initSqlField.getText()));
 
-		context.setUfosVersion(emptyToNull(ufosVersionField.getText()));
 		context.setChownUser(emptyToNull(chownUserField.getText()));
 
 		context.setSkipDb(skipDbCheckBox.isSelected());

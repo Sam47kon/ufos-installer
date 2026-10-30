@@ -90,10 +90,10 @@ public class UpdateCoreScenario implements ScenarioExecutor {
 		String oldVersion = "unknown";
 		Path oldWar = currentWars.isEmpty() ? null : currentWars.get(0);
 		if (oldWar != null) {
-			oldVersion = resolver.extractCoreVersion(oldWar, null);
+			oldVersion = resolver.extractCoreVersion(oldWar);
 		}
 
-		String newVersion = updateCore ? resolver.extractCoreVersion(newCoreWar, context.getUfosVersion()) : null;
+		String newVersion = updateCore ? resolver.extractCoreVersion(newCoreWar) : null;
 
 		LOGGER.info("Текущая версия ядра: " + oldVersion);
 		LOGGER.info("Новая версия ядра:   " + (updateCore ? newVersion : "не обновляется"));

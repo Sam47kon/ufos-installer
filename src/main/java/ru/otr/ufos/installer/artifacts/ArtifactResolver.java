@@ -203,7 +203,7 @@ public class ArtifactResolver {
 		return null;
 	}
 
-	public String extractCoreVersion(@NotNull Path warFile, String fallbackVersion) {
+	public String extractCoreVersion(@NotNull Path warFile) {
 		String fileName = warFile.getFileName().toString();
 		Matcher matcher = CORE_WAR_VERSION_PATTERN.matcher(fileName);
 
@@ -211,11 +211,6 @@ public class ArtifactResolver {
 			String version = matcher.group(1);
 			LOGGER.info("Версия ядра из имени файла: " + version);
 			return version;
-		}
-
-		if (fallbackVersion != null && !fallbackVersion.isBlank()) {
-			LOGGER.info("Версия ядра взята из параметра: " + fallbackVersion);
-			return fallbackVersion;
 		}
 
 		LOGGER.warn("Не удалось определить версию ядра из имени файла: " + fileName);

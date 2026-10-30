@@ -51,12 +51,6 @@ public class CliParser implements Runnable {
 	private Path backupDir;
 
 	@Option(
-			names = {"--ufos-version"},
-			description = "Версия УФОС, если её нельзя определить из имени WAR"
-	)
-	private String ufosVersion;
-
-	@Option(
 			names = {"--core-war"},
 			description = "Путь к WAR-файлу ядра. Если не указан, ищется автоматически в --artifacts-dir"
 	)

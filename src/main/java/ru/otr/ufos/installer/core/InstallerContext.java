@@ -32,8 +32,6 @@ public class InstallerContext {
 	private Path artifactsDir;
 	// "--backup-dir"
 	private Path backupDir;
-	// "--ufos-version"
-	private String ufosVersion;
 	// "--core-war"
 	private Path coreWar;
 	// "--libs-zip"
