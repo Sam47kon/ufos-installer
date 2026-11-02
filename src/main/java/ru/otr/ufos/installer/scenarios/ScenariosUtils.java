@@ -87,6 +87,9 @@ public class ScenariosUtils {
 		Path tempDir = ArchiveHelper.extractToTemp(appZip);
 		try {
 			Path appRoot = ArchiveHelper.detectEffectiveRoot(tempDir);
+			if (FileManager.existsChild(appRoot, "STAND")) {
+				appRoot = appRoot.resolve("STAND");
+			}
 
 			Path srcConfig = appRoot.resolve("sufd.config");
 			Path srcMigrations = appRoot.resolve("sql-migrations");
